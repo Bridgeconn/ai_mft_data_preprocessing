@@ -1,0 +1,65 @@
+version: '3.9'
+
+services:
+  bible-db:
+    image: postgres:15.2
+    healthcheck:
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    restart: always
+    environment:
+      - POSTGRES_USER=${HACKATHON_POSTGRES_USER}
+      - POSTGRES_PASSWORD=${HACKATHON_POSTGRES_PASSWORD}
+      - POSTGRES_DB=${HACKATHON_POSTGRES_DATABASE}
+      - POSTGRES_HOST_AUTH_METHOD=md5
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    expose:
+      - 5432
+    ports:
+      - "5440:5432"
+    networks:
+      - bible-network
+    volumes:
+      - bible-db-vol:/var/lib/postgresql/data
+
+  bible-analysis-app:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    healthcheck:
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    environment:
+      - HACKATHON_POSTGRES_HOST=bible-db
+      - HACKATHON_POSTGRES_PORT=${HACKATHON_POSTGRES_PORT}
+      - HACKATHON_POSTGRES_USER=${HACKATHON_POSTGRES_USER}
+      - HACKATHON_POSTGRES_PASSWORD=${HACKATHON_POSTGRES_PASSWORD}
+      - HACKATHON_POSTGRES_DATABASE=${HACKATHON_POSTGRES_DATABASE}
+      - LOGGING_LEVEL=INFO
+    
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    volumes:
+      - logs-vol:/app/logs
+      
+    restart: always
+    depends_on:
+      - bible-db
+    expose:
+      - 8000
+    ports:
+      - "8000:8000"
+    networks:
+      - bible-network
+    container_name: bible-analysis-app
+
+networks:
+  bible-network:
+
+volumes:
+  bible-db-vol:
+  logs-vol:

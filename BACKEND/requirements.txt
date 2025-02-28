@@ -1,0 +1,6 @@
+fastapi
+usfm-grammar
+SQLAlchemy
+psycopg2
+uvicorn
+python-multipart
