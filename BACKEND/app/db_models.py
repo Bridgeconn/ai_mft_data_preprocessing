@@ -7,9 +7,7 @@ class Project(Base):
     __tablename__ = "projects"
     
     project_id = Column(Integer, primary_key=True, autoincrement=True)
-    language = Column(String, nullable=False)
-    version = Column(String, nullable=False)
-    revision = Column(Integer, nullable=False)
+    project_name = Column(String, nullable=False)
 
   
 
@@ -22,7 +20,7 @@ class Book(Base):
     usfm = Column(Text, nullable=False)  
     usj = Column(Text, nullable=True)   
     usfm_sha=Column(String, nullable=False)
-    error_message =Column( String, nullable=True)
+    status = Column(String, nullable=False)
 
 
 class Verse(Base):

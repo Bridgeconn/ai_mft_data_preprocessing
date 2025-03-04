@@ -8,7 +8,6 @@ import csv
 import hashlib
 import io
 import csv
-# from fastapi.responses import StreamingResponse
 
 
 
@@ -107,5 +106,46 @@ def insert_verses_into_db(book_name,project_id, verse_data, session):
         logging.info(f"Successfully inserted verses for {book_name} (Book ID: {book_id})")
     except Exception as e:
         logging.error(f"Error inserting verses for {book_name}: {str(e)}")
-        session.rollback()  # Rollback changes on failure
+        session.rollback() 
+
+
+
+
+def update_verses_in_db(book_name, project_id, book_id, verse_data, session):
+    """ Update existing verses in the `verses` table without duplicating, based on `book_id` and `project_id`. """
+    
+    if not verse_data:
+        logging.error(f"No verse data found for book {book_name}, skipping update.")
+        return
+
+    try:
+        # Fetch all existing verses for this book and project into a dictionary
+        existing_verses = {
+            (v.chapter, v.verse): v
+            for v in session.query(Verse).filter(Verse.book_id == book_id).all()
+        }
+        for row in verse_data:
+            if len(row) >= 4:
+                csv_book, chapter, verse, text = row[0], row[1], row[2], row[3]
+
+                # Ensure valid chapter, verse, and text
+                if not str(chapter).isdigit() or not str(verse).strip() or not text.strip():
+                    logging.warning(f"Skipping invalid data: Chapter {chapter}, Verse {verse}")
+                    continue
+                verse_key = (int(chapter), str(verse))
+
+                if verse_key in existing_verses:
+                    #  Update existing verse
+                    existing_verses[verse_key].text = text.replace("\n", " ")
+                    logging.info(f"Updated verse {chapter}:{verse} in {book_name}")
+                else:
+                    logging.warning(f"Verse {chapter}:{verse} does not exist, skipping update.")
+
+        session.commit()
+        logging.info(f"Successfully updated verses for {book_name} (Book ID: {book_id}, Project ID: {project_id})")
+
+    except Exception as e:
+        logging.error(f"Error updating verses for {book_name}, Project {project_id}: {str(e)}")
+        session.rollback()
+
 
