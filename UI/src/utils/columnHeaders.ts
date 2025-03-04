@@ -1,0 +1,28 @@
+export const FIXED_HEADERS = [
+    "Name",
+    "Topics",
+    "Project Name",
+    "Project ID",
+    "Start Date",
+    "End Date",
+    "Type",
+    "Format",
+    "Country",
+    "Publisher",
+    "Copyright Status",
+    "Contract Tenures",
+    "Version",
+    "Project Manager",
+    "Language",
+    "Link",
+    "Related Gateway Language",
+    "Source Text",
+    "Source File",
+    "Localised Files Links",
+    "Remarks",
+    "License",
+    "Digital Platform Links",
+    "DBL Link",
+  ];
+
+  
