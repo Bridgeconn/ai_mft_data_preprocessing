@@ -14,6 +14,7 @@ import Profile from "./pages/profilePage/Profile";
 import RepoPage from "./pages/repo/[slug]";
 import { ViewFile } from "./pages/ViewFile";
 import { Toaster } from "./components/ui/toaster";
+import ParallelCorpora from "./pages/dataset/parallelCorpora";
 function AppContent() {
   const location = useLocation();
   // Check if the current route is /signin
@@ -37,6 +38,7 @@ function AppContent() {
           <Route path="projects" element={<ListRepo />} />
           <Route path="users" element={<ListRepo />} />
         </Route>
+        <Route path="/createdataset" element={<ParallelCorpora />} />
         <Route path="/createrepo" element={<CreateRepo />} />
         <Route path="/repo/:tab/:owner/:repo/*" element={<RepoRoutes />} />
       </Routes>

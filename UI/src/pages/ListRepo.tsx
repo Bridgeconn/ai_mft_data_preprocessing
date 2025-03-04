@@ -2,7 +2,14 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useStore } from "@/stores/Store";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { formatDistanceToNow } from "date-fns";
-import { Star, Plus, Book, BookLock, ArrowDownToLine } from "lucide-react";
+import {
+  Star,
+  Plus,
+  Book,
+  BookLock,
+  ArrowDownToLine,
+  FileSpreadsheet,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { API, setHeader } from "@/services/Api";
@@ -372,6 +379,16 @@ const ListRepo: React.FC = () => {
                 </div>
               )}
               <div>
+                {activeTab === "projects" && (
+                  <Button
+                    className="mr-4 bg-slate-600 text-white hover:bg-slate-900"
+                    title={`Create a Dataset`}
+                    variant="secondary"
+                    onClick={() => navigate("/createdataset")}
+                  >
+                    <FileSpreadsheet className="h-4 w-4" />
+                  </Button>
+                )}
                 {activeTab === "projects" && (
                   <Button
                     className="mr-4 bg-green-500 text-white hover:bg-green-600"
