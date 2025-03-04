@@ -1,0 +1,55 @@
+export declare const user_url = "/api/v1/user";
+export declare const org_url = "/api/v1/orgs";
+export declare const repo_url: string;
+interface StoreState {
+    access_token: string | null;
+    refresh_token: string | null;
+    expires_in: number | null;
+    oauth_state: string | null;
+    userData: any;
+    userOrganizations: any;
+    allRepos: any;
+    orgsWithCreateRepoPermission: any;
+    userRepos: any;
+    starredUserRepos: any;
+    followers: any;
+    following: any;
+    currentRepoData: any;
+    currentRepoFiles: any;
+    metaDataContent: any;
+    catalogueData: any;
+    error: any;
+    languageFileContent: any;
+    setToken: (access_token: string, refresh_token: string, expires_in: number) => void;
+    setOauthState: (oauth_state: string) => void;
+    logOut: () => void;
+    setUserData: (data: any) => void;
+    fetchUserData: () => Promise<void>;
+    fetchHomePageData: () => Promise<void>;
+    fetchAllRepos: () => Promise<any | []>;
+    fetchOrganizations: () => Promise<any | []>;
+    fetchOrgsWithCreateRepoPermission: (username: string, orgName: string) => Promise<any | []>;
+    fetchUserRepos: (userName: string) => Promise<any | []>;
+    fetchUserStarredRepos: (userName: string) => Promise<any | []>;
+    fetchFollowers: (userName: string) => Promise<any | []>;
+    fetchFollowing: (userName: string) => Promise<any | []>;
+    fetchCurrentRepoFiles: () => Promise<any | []>;
+    fetchMetaDataContent: () => Promise<any | []>;
+    fetchCatalogueData: () => Promise<any | []>;
+    postCreateRepoInOrg: (data: any, orgName: string) => Promise<any | []>;
+    postCreateUserRepo: (data: any) => Promise<any | []>;
+    postMetaDataContent: (data: any, method: string) => Promise<any | []>;
+    postCreateRepoCatalogue: (data: any, repoName: string) => Promise<any | []>;
+}
+export declare const useStore: import("zustand").UseBoundStore<Omit<import("zustand").StoreApi<StoreState>, "persist"> & {
+    persist: {
+        setOptions: (options: Partial<import("zustand/middleware").PersistOptions<StoreState, unknown>>) => void;
+        clearStorage: () => void;
+        rehydrate: () => Promise<void> | void;
+        hasHydrated: () => boolean;
+        onHydrate: (fn: (state: StoreState) => void) => () => void;
+        onFinishHydration: (fn: (state: StoreState) => void) => () => void;
+        getOptions: () => Partial<import("zustand/middleware").PersistOptions<StoreState, unknown>>;
+    };
+}>;
+export {};
