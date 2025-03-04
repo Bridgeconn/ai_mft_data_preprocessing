@@ -22,27 +22,11 @@ def parse_usfm_to_csv(book_name, usfm_content, project_id):
     try:
         my_parser = USFMParser(usfm_content)  # Initialize parser
         output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text
-        
-        base_output_dir = os.path.join(UPLOAD_DIR, "output")
-        os.makedirs(base_output_dir, exist_ok=True)
-        # Ensure output directory exists
-        project_output_dir = os.path.join(base_output_dir, f"output_project_{project_id}")
-        os.makedirs(project_output_dir, exist_ok=True)
-
-        output_file = f"{book_name}.csv"
-        output_path = os.path.join(project_output_dir, output_file)
-
-        # Save CSV file for debugging
-        with open(output_path, "w", newline='', encoding="utf8") as csv_file:
-            writer = csv.writer(csv_file)
-            processed_output = [
-                [value.replace("\n", " ") if isinstance(value, str) else value for value in row]
-                for row in output
-            ]
-            writer.writerows(processed_output)
-
-        logging.info(f"Saved CSV: {output_path}")
         logging.info(f"Extracted {len(output)} verses from {book_name}")
+        if not output:
+            logging.error(f"No data extracted for {book_name}!")
+        else:
+            logging.info(f"Extracted {len(output)} verses for {book_name}")
 
         return output  #  Ensure we return the extracted verse data
     except Exception as e:
@@ -149,3 +133,8 @@ def update_verses_in_db(book_name, project_id, book_id, verse_data, session):
         session.rollback()
 
 
+def parse_verse_number(verse):
+    """Convert verse numbers into sortable format (handles single verses and ranges like '1-2')."""
+    if '-' in verse:
+        return int(verse.split('-')[0])  # Take the first number in range (e.g., '1-2' → 1)
+    return int(verse)  # Convert single verse to int

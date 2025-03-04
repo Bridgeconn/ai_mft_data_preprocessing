@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException,File,UploadFile
+from fastapi import APIRouter, HTTPException,File,UploadFile,Query
+from fastapi import Body
 from pydantic import BaseModel
 from database import SessionLocal
 import shutil
@@ -12,8 +13,8 @@ import io
 import csv
 from fastapi.responses import StreamingResponse
 import crud
-# from fastapi.responses import FileResponse
 from fastapi.responses import JSONResponse
+import base64
 
 
 
@@ -22,13 +23,16 @@ logging.basicConfig(level=logging.INFO)
 router = APIRouter()
 
 
-UPLOAD_DIR = "uploads/"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-OUTPUT_DIR = os.path.join(UPLOAD_DIR, "output")  
+ 
 
 class ProjectRequest(BaseModel):
     project_name: str
+
+
+class USFMUploadRequest(BaseModel):
+    project_name: str
+    usfm_sha: str
+    encoded_usfm: str
 
 
 @router.post("/add_project/")
@@ -71,34 +75,38 @@ async def list_projects():
 
 @router.post("/upload_usfm/")
 async def upload_usfm(
-    project_id: int,
-    usfm_sha: str,
-    file: UploadFile = File(...)
+    request: USFMUploadRequest
 ):
-    """ Upload a single USFM file, process it synchronously, and store data in DB """
+    """ 
+    Upload a USFM content as a string, process it, and store data in DB.
+    No file is saved to disk; everything is handled in-memory.
+    """
     session = SessionLocal()
 
     try:
-        # Check if project exists
-        project = session.query(Project).filter_by(project_id=project_id).first()
+        # Get project_id from project_name
+        project_name = request.project_name
+        usfm_sha = request.usfm_sha
+        encoded_usfm = request.encoded_usfm
+        project = session.query(Project).filter_by(project_name=project_name).first()
         if not project:
-            raise HTTPException(status_code=404, detail="Project ID not found")
+            raise HTTPException(status_code=404, detail="Project name not found")
+        
+        project_id = project.project_id
+        logging.info(f"Processing USFM file for project: {project_name} (Project ID: {project_id})")
 
-        # Save USFM file
-        file_path = os.path.join(UPLOAD_DIR, file.filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+        try:
+            usfm_bytes = base64.b64decode(encoded_usfm)
+            usfm = usfm_bytes.decode("utf-8")  # Decode from bytes to string
+        except Exception as e:
+            logging.error(f"Failed to decode USFM content: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid encoded USFM content")
 
-        logging.info(f"Uploaded USFM file: {file.filename}")
-
-        # Read USFM content
-        with open(file_path, "r", encoding="utf8") as f:
-            usfm_content = f.read()
 
         # Extract book name from USFM
-        book_name = crud.extract_book_code(usfm_content)
+        book_name = crud.extract_book_code(usfm)
         if not book_name:
-            logging.error(f"Failed to extract book name from {file.filename}")
+            logging.error(f"Failed to extract book name ")
             raise HTTPException(status_code=400, detail="Failed to extract book name")
         
         logging.info(f"Processing USFM file for book: {book_name}")
@@ -111,7 +119,7 @@ async def upload_usfm(
         parsing_errors = []
         # Convert USFM to USJ
         try:
-            my_parser = USFMParser(usfm_content)
+            my_parser = USFMParser(usfm)
             usj_data = my_parser.to_usj()
             usj_text = json.dumps(usj_data, ensure_ascii=False)
             parsing_errors = my_parser.errors
@@ -119,12 +127,12 @@ async def upload_usfm(
             logging.error(f"USFM Parsing Failed: {str(e)}")
             parsing_errors.append(str(e))
 
-        status = "success" if not parsing_errors else "failed"
+        status ="success" if not parsing_errors else json.dumps(parsing_errors)
 
         new_book = Book(
             book_name=book_name,
             project_id=project_id,
-            usfm=usfm_content,
+            usfm=usfm,
             usj=usj_text if not parsing_errors else None,
             usfm_sha=usfm_sha,
             # error_message=json.dumps(parsing_errors) if parsing_errors else None
@@ -141,7 +149,7 @@ async def upload_usfm(
 
         # Convert USFM to CSV and insert verses
         logging.info(f"Parsing USFM to CSV for book: {book_name}")
-        verse_data = crud.parse_usfm_to_csv(book_name, usfm_content, project_id)
+        verse_data = crud.parse_usfm_to_csv(book_name, usfm, project_id)
 
         if verse_data:
             logging.info(f"Inserting verses into database for book: {book_name}")
@@ -172,35 +180,43 @@ async def upload_usfm(
 
 
 
+
 @router.put("/update_usfm/")
 async def update_usfm(
-    project_id: int,
-    usfm_sha: str,
-    file: UploadFile = File(...)
+    request: USFMUploadRequest
 ):
     """ Update an existing USFM file, reprocess it, and update both book and verse tables properly. """
     session = SessionLocal()
 
     try:
-        # Save the uploaded file
-        file_path = os.path.join(UPLOAD_DIR, file.filename)
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        logging.info(f"Uploaded USFM file for update: {file.filename}")
-        # Read USFM content
-        with open(file_path, "r", encoding="utf8") as f:
-            usfm_content = f.read()
+        # Extract values from request body
+        project_name = request.project_name
+        usfm_sha = request.usfm_sha
+        encoded_usfm = request.encoded_usfm
         # Extract book name from USFM
-        book_name = crud.extract_book_code(usfm_content)
+        project = session.query(Project).filter(Project.project_name == project_name).first()
+        if not project:
+            raise HTTPException(status_code=404, detail="Project not found")
+        project_id = project.project_id
+
+        logging.info(f"Updating USFM file for project: {project_name} (Project ID: {project_id})")
+        try:
+            usfm_bytes = base64.b64decode(encoded_usfm)
+            usfm = usfm_bytes.decode("utf-8")  # Convert bytes to string
+        except Exception as e:
+            logging.error(f"Failed to decode USFM content: {str(e)}")
+            raise HTTPException(status_code=400, detail="Invalid encoded USFM content")
+
+        book_name = crud.extract_book_code(usfm)
         if not book_name:
-            logging.error(f"Failed to extract book name from {file.filename}")
+            logging.error(f"Failed to extract book name ")
             raise HTTPException(status_code=400, detail="Failed to extract book name")
         logging.info(f"Updating USFM file for book: {book_name}")
         usj_text = None
         parsing_errors = []
         # Convert USFM to USJ
         try:
-            my_parser = USFMParser(usfm_content)
+            my_parser = USFMParser(usfm)
             usj_data = my_parser.to_usj()
             usj_text = json.dumps(usj_data, ensure_ascii=False)
             parsing_errors = my_parser.errors
@@ -212,7 +228,7 @@ async def update_usfm(
         existing_book = session.query(Book).filter_by(book_name=book_name, project_id=project_id).first()
         if existing_book:
             #  Update the existing book record
-            existing_book.usfm = usfm_content
+            existing_book.usfm = usfm
             existing_book.usj = usj_text if not parsing_errors else None
             existing_book.usfm_sha = usfm_sha
             existing_book.status = "success" if not parsing_errors else json.dumps(parsing_errors)  # ✅ Store errors instead of "failed"
@@ -230,7 +246,7 @@ async def update_usfm(
 
         #  Convert USFM to CSV and update verses
         logging.info(f"Re-parsing USFM to CSV for book: {book_name}")
-        verse_data = crud.parse_usfm_to_csv(book_name, usfm_content, project_id)
+        verse_data = crud.parse_usfm_to_csv(book_name, usfm, project_id)
 
         if verse_data:
             logging.info(f"Updating verses in database for book: {book_name}")
@@ -259,12 +275,18 @@ async def update_usfm(
 
 
 
+
 @router.get("/list_bibles/")
-async def list_bibles():
-    """ Retrieve all Bibles (projects) along with their books """
+async def list_bibles(project_name: str = Query(None, description="Filter by project name")):
+    """ Retrieve all Bibles (projects) along with their books and their status, optionally filtering by project name """
     session = SessionLocal()
     try:
-        projects = session.query(Project).all()
+        query = session.query(Project)
+        
+        if project_name:
+            query = query.filter(Project.project_name == project_name)
+
+        projects = query.all()
 
         if not projects:
             raise HTTPException(status_code=404, detail="No Bibles found")
@@ -272,12 +294,12 @@ async def list_bibles():
         bible_list = []
         for project in projects:
             books = session.query(Book).filter(Book.project_id == project.project_id).all()
-            book_names = [book.book_name for book in books]  # Extract book names
+            book_data = [{"book_name": book.book_name, "status": book.status} for book in books]  # Include book status
 
             bible_list.append({
                 "project_id": project.project_id,
                 "project_name": project.project_name,
-                "books": book_names
+                "books": book_data  # List of books with their status
             })
 
         return {"bibles": bible_list}
@@ -288,6 +310,7 @@ async def list_bibles():
 
     finally:
         session.close()
+
 
 
 @router.get("/find_missing_verses/")
@@ -514,3 +537,175 @@ async def get_book_chapters(book_id: int):
 
 
 
+@router.get("/parallel_corpora/csv/")
+async def get_parallel_corpora_csv(project_name_1: str, project_name_2: str):
+    """
+    Generate and return the parallel corpus between two projects (two languages) in CSV format.
+    Raises an error if no common books are found.
+    """
+    session = SessionLocal()
+    try:
+        # Fetch project IDs from project names
+        project_1 = session.query(Project).filter(Project.project_name == project_name_1).first()
+        project_2 = session.query(Project).filter(Project.project_name == project_name_2).first()
+
+        if not project_1:
+            raise HTTPException(status_code=404, detail=f"Project '{project_name_1}' not found")
+        if not project_2:
+            raise HTTPException(status_code=404, detail=f"Project '{project_name_2}' not found")
+        project_id_1 = project_1.project_id
+        project_id_2 = project_2.project_id
+        # Fetch books for both projects
+        books_1 = session.query(Book).filter(Book.project_id == project_id_1).all()
+        books_2 = session.query(Book).filter(Book.project_id == project_id_2).all()
+
+        # Convert books_2 to a dictionary {book_name: book_id}
+        books_2_dict = {book.book_name: book.book_id for book in books_2}
+
+        # Find common books by name
+        common_books = [book for book in books_1 if book.book_name in books_2_dict]
+        print("Common books:", common_books)
+
+        # 🔹 Raise error if no common books are found
+        if not common_books:
+            raise HTTPException(status_code=404, detail="No common books found between the two projects")
+        parallel_corpora = []
+        for book in common_books:
+            book_name = book.book_name
+            book_id_1 = book.book_id
+            book_id_2 = books_2_dict[book_name]
+
+            # Fetch verses for both projects
+            verses_1 = (
+                session.query(Verse.chapter, Verse.verse, Verse.text)
+                .filter(Verse.book_id == book_id_1)
+                .order_by(Verse.chapter, Verse.verse)
+                .all()
+            )
+            verses_2 = (
+                session.query(Verse.chapter, Verse.verse, Verse.text)
+                .filter(Verse.book_id == book_id_2)
+                .order_by(Verse.chapter, Verse.verse)
+                .all()
+            )
+            # Convert verses into dictionaries for fast lookup
+            verses_1_dict = {(c, v): t for c, v, t in verses_1}
+            verses_2_dict = {(c, v): t for c, v, t in verses_2}
+
+            # Get all unique chapter-verse pairs
+            # all_keys = sorted(set(verses_1_dict.keys()) | set(verses_2_dict.keys()))
+            all_keys = sorted(
+                set(verses_1_dict.keys()) | set(verses_2_dict.keys()),
+                key=lambda x: (int(x[0]), crud.parse_verse_number(x[1]))
+            )
+            for chapter, verse in all_keys:
+                text_1 = verses_1_dict.get((chapter, verse), "MISSING")
+                text_2 = verses_2_dict.get((chapter, verse), "MISSING")
+                parallel_corpora.append([book_name, chapter, verse, text_1, text_2])
+
+        # 🔹 Ensure there's parallel corpus data, else raise an error
+        if not parallel_corpora:
+            raise HTTPException(status_code=404, detail="No parallel corpus data found")
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        # Write CSV headers
+        writer.writerow(["Book", "Chapter", "Verse", "Text_1", "Text_2"])
+
+        # Write CSV rows
+        writer.writerows(parallel_corpora)
+        output.seek(0)
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=Parallel_Corpus.csv"}
+        )
+    except HTTPException as e:
+        session.rollback()
+        raise e  # Return HTTP exception with message
+    except Exception as e:
+        logging.error(f"Error generating parallel corpora: {str(e)}")
+        session.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    finally:
+        session.close()
+
+
+@router.get("/parallel_corpora/csv/texts/")
+async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: str):
+    """
+    Generate and return the parallel corpus between two projects in CSV format with only Text_1 and Text_2.
+    """
+    session = SessionLocal()
+    try:
+        # Fetch project IDs from project names
+        project_1 = session.query(Project).filter(Project.project_name == project_name_1).first()
+        project_2 = session.query(Project).filter(Project.project_name == project_name_2).first()
+
+        if not project_1:
+            raise HTTPException(status_code=404, detail=f"Project '{project_name_1}' not found")
+        if not project_2:
+            raise HTTPException(status_code=404, detail=f"Project '{project_name_2}' not found")
+        project_id_1 = project_1.project_id
+        project_id_2 = project_2.project_id
+
+        # Fetch books for both projects
+        books_1 = session.query(Book).filter(Book.project_id == project_id_1).all()
+        books_2 = session.query(Book).filter(Book.project_id == project_id_2).all()
+
+        books_2_dict = {book.book_name: book.book_id for book in books_2}
+        common_books = [book for book in books_1 if book.book_name in books_2_dict]
+
+        if not common_books:
+            raise HTTPException(status_code=404, detail="No common books found between the two projects")
+
+        parallel_texts = []
+
+        for book in common_books:
+            book_id_1 = book.book_id
+            book_id_2 = books_2_dict[book.book_name]
+
+            # Fetch verses for both projects
+            verses_1 = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id_1).all()
+
+            verses_2 = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id_2).all()
+
+            verses_1_dict = {(c, v): t for c, v, t in verses_1}
+            verses_2_dict = {(c, v): t for c, v, t in verses_2}
+
+            all_keys = sorted(set(verses_1_dict.keys()) | set(verses_2_dict.keys()))
+
+            for chapter, verse in all_keys:
+                text_1 = verses_1_dict.get((chapter, verse), "MISSING")
+                text_2 = verses_2_dict.get((chapter, verse), "MISSING")
+                parallel_texts.append([text_1, text_2])
+
+        if not parallel_texts:
+            raise HTTPException(status_code=404, detail="No parallel corpus data found")
+
+        output = io.StringIO()
+        writer = csv.writer(output)
+
+        # Write CSV headers
+        writer.writerow(["Text_1", "Text_2"])
+        writer.writerows(parallel_texts)
+        output.seek(0)
+
+        return StreamingResponse(
+            iter([output.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": "attachment; filename=Parallel_Texts.csv"}
+        )
+
+    except HTTPException as e:
+        session.rollback()
+        raise e
+
+    except Exception as e:
+        logging.error(f"Error generating parallel corpora: {str(e)}")
+        session.rollback()
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    finally:
+        session.close()

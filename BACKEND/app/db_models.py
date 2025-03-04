@@ -1,5 +1,7 @@
 from sqlalchemy import Column, Integer, String, ForeignKey, Text
 from sqlalchemy.orm import  declarative_base
+from sqlalchemy.dialects.postgresql import JSONB
+
 
 Base = declarative_base()
 
@@ -18,7 +20,7 @@ class Book(Base):
     book_name = Column(String, nullable=False)
     project_id = Column(Integer, ForeignKey("projects.project_id"), nullable=False)
     usfm = Column(Text, nullable=False)  
-    usj = Column(Text, nullable=True)   
+    usj = Column(JSONB, nullable=True)   
     usfm_sha=Column(String, nullable=False)
     status = Column(String, nullable=False)
 
