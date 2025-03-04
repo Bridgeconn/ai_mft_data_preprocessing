@@ -174,3 +174,4 @@ cython_debug/
 docker/gitea
 docker/postgres
 node_modules
+.env.local
