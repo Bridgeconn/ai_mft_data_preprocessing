@@ -11,10 +11,10 @@ import csv
 
 
 
-UPLOAD_DIR = "uploads/"
-if not os.path.exists(UPLOAD_DIR):
-    os.makedirs(UPLOAD_DIR)
-OUTPUT_DIR = os.path.join(UPLOAD_DIR, "output")  
+# UPLOAD_DIR = "uploads/"
+# if not os.path.exists(UPLOAD_DIR):
+#     os.makedirs(UPLOAD_DIR)
+# OUTPUT_DIR = os.path.join(UPLOAD_DIR, "output")  
 
 
 def parse_usfm_to_csv(book_name, usfm_content, project_id):
