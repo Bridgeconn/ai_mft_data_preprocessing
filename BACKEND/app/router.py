@@ -1,9 +1,8 @@
+import itertools
 from fastapi import APIRouter, HTTPException,File,UploadFile,Query
 from fastapi import Body
 from pydantic import BaseModel
 from database import SessionLocal
-import shutil
-import os
 import json
 from usfm_grammar import USFMParser,Filter
 from db_models import Project, Book, Verse
@@ -292,8 +291,8 @@ async def update_usfm(
 
 
 
-@router.get("/list_bibles/")
-async def list_bibles(project_name: str = Query(None)):
+@router.get("/list_books/")
+async def list_books(project_name: str = Query(None)):
     """ Retrieve all Bibles (projects) along with their books and their status, optionally filtering by project name """
     session = SessionLocal()
     try:
@@ -310,7 +309,7 @@ async def list_bibles(project_name: str = Query(None)):
         bible_list = []
         for project in projects:
             books = session.query(Book).filter(Book.project_id == project.project_id).all()
-            book_data = [{"book_name": book.book_name, "status": book.status} for book in books]  # Include book status
+            book_data = [{"book_id": book.book_id, "book_name": book.book_name, "status": book.status} for book in books] 
 
             bible_list.append({
                 "project_id": project.project_id,
@@ -319,7 +318,8 @@ async def list_bibles(project_name: str = Query(None)):
             })
 
         return {"bibles": bible_list}
-
+    except HTTPException :
+        raise
     except Exception as e:
         logging.error(f"Error retrieving Bibles: {str(e)}")
         raise HTTPException(status_code=500, detail="Error retrieving Bibles")
@@ -356,14 +356,27 @@ async def find_missing_verses(book_id: int, project_id: int):
 
         # Get all existing verses for this book
         existing_verses = session.query(Verse.chapter, Verse.verse).filter(Verse.book_id == book_id).all()  #[(1, "1"), (1, "2"), (2, "1"), (2, "3")]
-        existing_verse_dict = {(c, v) for c, v in existing_verses}   #{(1, "1"), (1, "2"), (2, "1"), (2, "3")}
+        # Convert to dict by chapter
+        existing_verse_dict = {}
+        for chapter, verse in existing_verses:
+            # if verse has - split and and take both numbers else append as is
+            if "-" in verse:
+                start_verse, end_verse = verse.split("-")
+                # just start_verse and end_verse are there can this be simplified
+                existing_verse_dict.setdefault(chapter, []).append(int(start_verse))
+                existing_verse_dict.setdefault(chapter, []).append(int(end_verse))
+            else:
+                existing_verse_dict.setdefault(chapter, []).append(int(verse))
+            
+        print("Existing verses:", existing_verse_dict)
+
         missing_verses = []
 
         # Check for missing verses
         for chapter, max_verse in enumerate(max_verses[book_name], start=1):  # `enumerate` ensures correct chapter index
             for verse in range(1, int(max_verse) + 1):  # Loop through expected verses
-                if (chapter, str(verse)) not in existing_verse_dict:  # Convert to string for comparison
-                    missing_verses.append({"book": book_name, "chapter": chapter, "verse": verse})
+                if verse not in existing_verse_dict.get(chapter, []):
+                    missing_verses.append({"chapter": chapter, "verse": verse})
 
         if not missing_verses:
             return {"message": f"No missing verses found for {book_name} in project {project_id}"}
@@ -413,10 +426,10 @@ async def get_book_usfm(book_id: int):
 
 
 
-@router.get("/book/csv/")
-async def get_book_csv(book_id: int):
+@router.get("/book/json/")
+async def get_book_json(book_id: int):
     """
-    Get the book's content in CSV format.
+    Get the book's content in JSON format.
     """
     session = SessionLocal()
     try:
@@ -433,42 +446,36 @@ async def get_book_csv(book_id: int):
         )
         if not verses:
             raise HTTPException(status_code=404, detail="No verses found for the book")
-        # Create CSV in memory
-        output = io.StringIO()
-        writer = csv.writer(output)
-        # Write CSV headers
-        writer.writerow(["Book", "Chapter", "Verse", "Text"])
-        # Write CSV rows
-        for chapter, verse, text in verses:
-            writer.writerow([book.book_name, chapter, verse, text])
-        output.seek(0)
-        # return StreamingResponse(
-        #     iter([output.getvalue()]), 
-        #     media_type="text/csv",
-        #     headers={"Content-Disposition": f"attachment; filename={book.book_name}.csv"}
-        # )
-        return StreamingResponse(
-            iter([output.getvalue()]),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename={book.book_name}.csv",
-                "Content-Type": "application/octet-stream",  # Forces download
-            }
+        # Sort by chapter first, then by parsed verse number
+        sorted_verses = sorted(verses, key=lambda v: (int(v.chapter), crud.parse_verse_number(v.verse)))
+
+        book_data = []
+        # convert to a list of dictionaries sort into sub list by chapter
+        for chapter, verses in itertools.groupby(sorted_verses, key=lambda v: v.chapter):
+            book_data.append({"chapter": chapter, "verses": [{"verse": v.verse, "text": v.text} for v in verses]})
+
+        return JSONResponse(
+            content={
+                "book_id": book_id,
+                "book_name": book.book_name,
+                "chapters": book_data
+            },
+            status_code=200
         )
     except HTTPException :
         raise
     except Exception as e:
-        logging.error(f"Error generating CSV for book_id {book_id}: {str(e)}")
+        logging.error(f"Error generating JSON for book_id {book_id}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     finally:
         session.close()
 
 
-@router.get("/chapter/csv/")
-async def get_chapter_csv(book_id: int, chapter: int):
+@router.get("/chapter/json/")
+async def get_chapter_json(book_id: int, chapter: int):
     """
-    Get the chapter's content in CSV format.
+    Get the chapter's content in JSON format.
     """
     session = SessionLocal()
     try:
@@ -487,40 +494,29 @@ async def get_chapter_csv(book_id: int, chapter: int):
 
         if not verses:
             raise HTTPException(status_code=404, detail="No verses found for the chapter")
-        # Create CSV in memory
-        output = io.StringIO()
-        writer = csv.writer(output)
-        # Write CSV headers
-        writer.writerow(["Book", "Chapter", "Verse", "Text"])
+        sorted_verses = sorted(verses, key=lambda v: crud.parse_verse_number(v.verse))
 
-        # Write CSV rows
-        for verse, text in verses:
-            writer.writerow([book.book_name, chapter, verse, text])
-        output.seek(0)
-        # return StreamingResponse(
-        #     iter([output.getvalue()]),
-        #     media_type="text/csv",
-        #     headers={"Content-Disposition": f"attachment; filename={book.book_name}_Chapter_{chapter}.csv"}
-        # )
-        return StreamingResponse(
-            iter([output.getvalue()]),
-            media_type="text/csv",
-            headers={
-                "Content-Disposition": f"attachment; filename={book.book_name}_Chapter_{chapter}.csv",
-                "Content-Type": "application/octet-stream",  # Forces download
-            }
+        # return sorted_verses list as json array
+        
+        data = [crud.verses_to_dict(row[0],row[1]) for row in sorted_verses]
+        return JSONResponse(
+            content={
+                "book": book.book_name,
+                "chapter": chapter,
+                "verses": data
+            },
+            status_code=200
         )
+        
+        
     except HTTPException :
         raise
     except Exception as e:
-        logging.error(f"Error generating CSV for book_id {book_id}, chapter {chapter}: {str(e)}")
+        logging.error(f"Error generating JSON for book_id {book_id}, chapter {chapter}: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
     finally:
         session.close()
-
-
-
 
 
 
@@ -538,15 +534,12 @@ async def get_book_chapters(book_id: int):
 
         # Fetch distinct chapters for the book
         chapters = (
-            session.query(Verse.chapter)
+            session.query(Verse.chapter.distinct())
             .filter(Verse.book_id == book_id)
-            .distinct()
             .order_by(Verse.chapter)
             .all()
         )
-        # Convert to a simple list
         chapter_list = [chapter[0] for chapter in chapters]
-
         if not chapter_list:
             raise HTTPException(status_code=404, detail="No chapters found for the book")
 
@@ -646,11 +639,6 @@ async def get_parallel_corpora_csv(project_name_1: str, project_name_2: str):
         # Write CSV rows
         writer.writerows(parallel_corpora)
         output.seek(0)
-        # return StreamingResponse(
-        #     iter([output.getvalue()]),
-        #     media_type="text/csv",
-        #     headers={"Content-Disposition": "attachment; filename=Parallel_Corpus_bcv.csv"}
-        # )
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
@@ -734,11 +722,6 @@ async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: st
         writer.writerows(parallel_texts)
         output.seek(0)
 
-        # return StreamingResponse(
-        #     iter([output.getvalue()]),
-        #     media_type="text/csv",
-        #     headers={"Content-Disposition": "attachment; filename=Parallel_corpus_Texts.csv"}
-        # )
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
