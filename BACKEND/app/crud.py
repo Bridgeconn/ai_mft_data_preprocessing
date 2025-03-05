@@ -1,30 +1,62 @@
-from database import SessionLocal
-import os
-import json
+import sys
 from usfm_grammar import USFMParser,Filter
 from db_models import  Book, Verse
 import logging
-import csv
 import hashlib
-import io
-import csv
+import unicodedata
+from sacremoses import MosesPunctNormalizer
+import re
+import typing as tp
 
 
  
 
+# Initialize Moses Punctuation Normalizer
+mpn = MosesPunctNormalizer(lang="en")
+mpn.substitutions = [(re.compile(r), sub) for r, sub in mpn.substitutions]
+
+
+def get_non_printing_char_replacer(replace_by: str = " ") -> tp.Callable[[str], str]:
+    """Function to replace non-printable characters"""
+    non_printable_map = {
+        ord(c): replace_by
+        for c in (chr(i) for i in range(sys.maxunicode + 1))
+        if unicodedata.category(c) in {"C", "Cc", "Cf", "Cs", "Co", "Cn"}
+    }
+    def replace_non_printing_char(line) -> str:
+        return line.translate(non_printable_map)
+    return replace_non_printing_char
+replace_nonprint = get_non_printing_char_replacer(" ")
+
+
+
+def normalize_text(text: str) -> str:
+    """Post-processing function for CSV data"""
+    if not isinstance(text, str):
+        return text
+    clean = mpn.normalize(text)  # Normalize punctuation
+    clean = replace_nonprint(clean)  # Remove non-printable characters
+    clean = unicodedata.normalize("NFKC", clean)  # Normalize Unicode characters
+    return clean
 
 def parse_usfm_to_csv(book_name, usfm_content, project_id):
     """ Convert USFM content to CSV format and return extracted data """
     try:
         my_parser = USFMParser(usfm_content)  # Initialize parser
         output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text
-        logging.info(f"Extracted {len(output)} verses from {book_name}")
-        if not output:
+        
+        # Normalize parsed output
+        processed_output = [
+            [normalize_text(value).replace("\n", " ") if isinstance(value, str) else value for value in row]
+            for row in output]
+        
+        logging.info(f"Extracted {len(processed_output)} verses from {book_name}")
+        if not processed_output:
             logging.error(f"No data extracted for {book_name}!")
         else:
-            logging.info(f"Extracted {len(output)} verses for {book_name}")
+            logging.info(f"Extracted {len(processed_output)} verses for {book_name}")
 
-        return output  #  Ensure we return the extracted verse data
+        return processed_output  #  Ensure we return the extracted verse data
     except Exception as e:
         logging.error(f"Error processing USFM content for {book_name}: {str(e)}")
         return None
