@@ -64,11 +64,27 @@ async def add_project(request: ProjectRequest):
 
 
 @router.get("/list_projects/")
-async def list_projects():
-   session=SessionLocal()
-   projects=session.query(Project).all()
-   session.close()
-   return {"projects": projects}
+async def list_projects(project_name: str = Query(None)):
+    """
+    List all projects or fetch a specific project by project_name.
+    If project_name is provided, returns the matching project or null if not found.
+    """
+    session = SessionLocal()
+    try:
+        if project_name:
+            project = session.query(Project).filter(Project.project_name == project_name).first()
+            return {"project": project if project else None}
+
+        projects = session.query(Project).all()
+        return {"projects": projects}
+
+    except Exception as e:
+        logging.error(f"Error fetching projects: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    finally:
+        session.close()
+
 
 
 
@@ -277,7 +293,7 @@ async def update_usfm(
 
 
 @router.get("/list_bibles/")
-async def list_bibles(project_name: str = Query(None, description="Filter by project name")):
+async def list_bibles(project_name: str = Query(None)):
     """ Retrieve all Bibles (projects) along with their books and their status, optionally filtering by project name """
     session = SessionLocal()
     try:
@@ -426,12 +442,19 @@ async def get_book_csv(book_id: int):
         for chapter, verse, text in verses:
             writer.writerow([book.book_name, chapter, verse, text])
         output.seek(0)
+        # return StreamingResponse(
+        #     iter([output.getvalue()]), 
+        #     media_type="text/csv",
+        #     headers={"Content-Disposition": f"attachment; filename={book.book_name}.csv"}
+        # )
         return StreamingResponse(
-            iter([output.getvalue()]), 
+            iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={book.book_name}.csv"}
+            headers={
+                "Content-Disposition": f"attachment; filename={book.book_name}.csv",
+                "Content-Type": "application/octet-stream",  # Forces download
+            }
         )
-
     except HTTPException :
         raise
     except Exception as e:
@@ -474,10 +497,18 @@ async def get_chapter_csv(book_id: int, chapter: int):
         for verse, text in verses:
             writer.writerow([book.book_name, chapter, verse, text])
         output.seek(0)
+        # return StreamingResponse(
+        #     iter([output.getvalue()]),
+        #     media_type="text/csv",
+        #     headers={"Content-Disposition": f"attachment; filename={book.book_name}_Chapter_{chapter}.csv"}
+        # )
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": f"attachment; filename={book.book_name}_Chapter_{chapter}.csv"}
+            headers={
+                "Content-Disposition": f"attachment; filename={book.book_name}_Chapter_{chapter}.csv",
+                "Content-Type": "application/octet-stream",  # Forces download
+            }
         )
     except HTTPException :
         raise
@@ -537,7 +568,7 @@ async def get_book_chapters(book_id: int):
 
 
 
-@router.get("/parallel_corpora/csv/")
+@router.get("/parallel_corpora/withbcv/csv/")
 async def get_parallel_corpora_csv(project_name_1: str, project_name_2: str):
     """
     Generate and return the parallel corpus between two projects (two languages) in CSV format.
@@ -615,11 +646,20 @@ async def get_parallel_corpora_csv(project_name_1: str, project_name_2: str):
         # Write CSV rows
         writer.writerows(parallel_corpora)
         output.seek(0)
+        # return StreamingResponse(
+        #     iter([output.getvalue()]),
+        #     media_type="text/csv",
+        #     headers={"Content-Disposition": "attachment; filename=Parallel_Corpus_bcv.csv"}
+        # )
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=Parallel_Corpus.csv"}
+            headers={
+                "Content-Disposition": 'attachment; filename="Parallel_corpus_withoutbcv.csv"',
+                "Content-Type": "application/octet-stream",  # Forces download
+            }
         )
+
     except HTTPException as e:
         session.rollback()
         raise e  # Return HTTP exception with message
@@ -632,7 +672,7 @@ async def get_parallel_corpora_csv(project_name_1: str, project_name_2: str):
         session.close()
 
 
-@router.get("/parallel_corpora/csv/texts/")
+@router.get("/parallel_corpora/withoutbcv/csv/")
 async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: str):
     """
     Generate and return the parallel corpus between two projects in CSV format with only Text_1 and Text_2.
@@ -674,8 +714,10 @@ async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: st
             verses_1_dict = {(c, v): t for c, v, t in verses_1}
             verses_2_dict = {(c, v): t for c, v, t in verses_2}
 
-            all_keys = sorted(set(verses_1_dict.keys()) | set(verses_2_dict.keys()))
-
+            all_keys = sorted(
+                set(verses_1_dict.keys()) | set(verses_2_dict.keys()),
+                key=lambda x: (int(x[0]), crud.parse_verse_number(x[1]))
+            )
             for chapter, verse in all_keys:
                 text_1 = verses_1_dict.get((chapter, verse), "MISSING")
                 text_2 = verses_2_dict.get((chapter, verse), "MISSING")
@@ -692,10 +734,18 @@ async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: st
         writer.writerows(parallel_texts)
         output.seek(0)
 
+        # return StreamingResponse(
+        #     iter([output.getvalue()]),
+        #     media_type="text/csv",
+        #     headers={"Content-Disposition": "attachment; filename=Parallel_corpus_Texts.csv"}
+        # )
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
-            headers={"Content-Disposition": "attachment; filename=Parallel_Texts.csv"}
+            headers={
+                "Content-Disposition": 'attachment; filename="Parallel_corpus_Texts.csv"',
+                "Content-Type": "application/octet-stream",  # Forces download
+            }
         )
 
     except HTTPException as e:
