@@ -292,8 +292,8 @@ async def update_usfm(
 
 
 
-@router.get("/list_bibles/")
-async def list_bibles(project_name: str = Query(None)):
+@router.get("/list_books/")
+async def list_books(project_name: str = Query(None)):
     """ Retrieve all Bibles (projects) along with their books and their status, optionally filtering by project name """
     session = SessionLocal()
     try:
@@ -310,7 +310,7 @@ async def list_bibles(project_name: str = Query(None)):
         bible_list = []
         for project in projects:
             books = session.query(Book).filter(Book.project_id == project.project_id).all()
-            book_data = [{"book_name": book.book_name, "status": book.status} for book in books]  # Include book status
+            book_data = [{"book_id": book.book_id, "book_name": book.book_name, "status": book.status} for book in books] 
 
             bible_list.append({
                 "project_id": project.project_id,
@@ -319,7 +319,8 @@ async def list_bibles(project_name: str = Query(None)):
             })
 
         return {"bibles": bible_list}
-
+    except HTTPException :
+        raise
     except Exception as e:
         logging.error(f"Error retrieving Bibles: {str(e)}")
         raise HTTPException(status_code=500, detail="Error retrieving Bibles")
@@ -433,13 +434,16 @@ async def get_book_csv(book_id: int):
         )
         if not verses:
             raise HTTPException(status_code=404, detail="No verses found for the book")
+        # Sort by chapter first, then by parsed verse number
+        sorted_verses = sorted(verses, key=lambda v: (int(v.chapter), crud.parse_verse_number(v.verse)))
+
         # Create CSV in memory
         output = io.StringIO()
         writer = csv.writer(output)
         # Write CSV headers
         writer.writerow(["Book", "Chapter", "Verse", "Text"])
         # Write CSV rows
-        for chapter, verse, text in verses:
+        for chapter, verse, text in sorted_verses:
             writer.writerow([book.book_name, chapter, verse, text])
         output.seek(0)
         # return StreamingResponse(
@@ -487,6 +491,8 @@ async def get_chapter_csv(book_id: int, chapter: int):
 
         if not verses:
             raise HTTPException(status_code=404, detail="No verses found for the chapter")
+        sorted_verses = sorted(verses, key=lambda v: crud.parse_verse_number(v.verse))
+
         # Create CSV in memory
         output = io.StringIO()
         writer = csv.writer(output)
@@ -494,7 +500,7 @@ async def get_chapter_csv(book_id: int, chapter: int):
         writer.writerow(["Book", "Chapter", "Verse", "Text"])
 
         # Write CSV rows
-        for verse, text in verses:
+        for verse, text in sorted_verses:
             writer.writerow([book.book_name, chapter, verse, text])
         output.seek(0)
         # return StreamingResponse(
