@@ -178,3 +178,10 @@ def parse_verse_number(verse):
     if '-' in verse:
         return int(verse.split('-')[0])  # Take the first number in range (e.g., '1-2' → 1)
     return int(verse)  # Convert single verse to int
+
+def verses_to_dict( verse, text):
+    """Helper function to convert verses to a dictionary."""
+    return {
+        "verse": verse,
+        "text": text
+    }
