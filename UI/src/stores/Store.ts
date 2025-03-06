@@ -50,6 +50,7 @@ interface StoreState {
   postMetaDataContent:(data: any, method: string) => Promise<any | []>;
   postCreateRepoCatalogue:(data: any, repoName: string) => Promise<any | []>;
   fetchRepoDetails: (owner: string, repoName: string) => Promise<any | []>;
+  editFileContent: (data: any, filePath: string) => Promise<any | []>;
 }
 
 const initializeLanguageRepo = async () => {
@@ -385,6 +386,18 @@ export const useStore = create<StoreState>()(
           return response;
         } catch (error) {
           console.error("Error creating repository:", error);
+          throw error;
+        }
+      },
+      editFileContent: async (data: any , filePath: string) => {
+        const owner = useStore.getState().currentRepoData.owner;  
+        const repoName = useStore.getState().currentRepoData.repo;
+        const create_url = `/api/v1/repos/${owner}/${repoName}/contents/${filePath}`;
+        try {
+          const response = await apiService.put(data, create_url);
+          return response;
+        } catch (error) {
+          console.error("Error updating file:", error);
           throw error;
         }
       },
