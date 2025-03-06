@@ -19,6 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useRepoPermissions } from "@/hooks/useRepoPermission";
+import ParseBooks from "./data-preprocessing/ParseBooks";
 
 interface RepoDetails {
   owner: string;
@@ -45,7 +46,6 @@ const FileExplorer: React.FC<RepoDetails> = ({ owner, repo }) => {
   const postCreateRepoCatalogue = useStore.getState().postCreateRepoCatalogue;
   const [activeTab, setActiveTab] = useState(tab || "files");
   const { hasRepoPermission } = useRepoPermissions(owner, repo);
-
   const handleTabChange = (value: string) => {
     setActiveTab(value);
     navigate(`/repo/${value}/${owner}/${repo}`, { replace: true });
@@ -185,6 +185,7 @@ const FileExplorer: React.FC<RepoDetails> = ({ owner, repo }) => {
           )}
         </div>
         <div className="flex items-center gap-4">
+          <ParseBooks owner={owner} repo={repo} />
           <Starrepo owner={owner} repo={repo} />
           {hasRepoPermission("write") && (
             <DropdownMenu>
