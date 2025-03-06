@@ -316,11 +316,12 @@ async def list_books(project_name: str = Query(None)):
         bible_list = []
         for project in projects:
             books = session.query(Book).filter(Book.project_id == project.project_id).all()
-            book_data = [{"book_id": book.book_id, "book_name": book.book_name, "status": book.status} for book in books] 
+            book_data = [{"book_id": book.book_id, "book_name": book.book_name, "status": book.status , "usfm_sha": book.usfm_sha} for book in books] 
 
             bible_list.append({
                 "project_id": project.project_id,
                 "project_name": project.project_name,
+               
                 "books": book_data  # List of books with their status
             })
 
