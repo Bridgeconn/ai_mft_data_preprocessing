@@ -1,30 +1,62 @@
-from database import SessionLocal
-import os
-import json
+import sys
 from usfm_grammar import USFMParser,Filter
 from db_models import  Book, Verse
 import logging
-import csv
 import hashlib
-import io
-import csv
+import unicodedata
+from sacremoses import MosesPunctNormalizer
+import re
+import typing as tp
 
 
  
 
+# Initialize Moses Punctuation Normalizer
+mpn = MosesPunctNormalizer(lang="en")
+mpn.substitutions = [(re.compile(r), sub) for r, sub in mpn.substitutions]
+
+
+def get_non_printing_char_replacer(replace_by: str = " ") -> tp.Callable[[str], str]:
+    """Function to replace non-printable characters"""
+    non_printable_map = {
+        ord(c): replace_by
+        for c in (chr(i) for i in range(sys.maxunicode + 1))
+        if unicodedata.category(c) in {"C", "Cc", "Cf", "Cs", "Co", "Cn"}
+    }
+    def replace_non_printing_char(line) -> str:
+        return line.translate(non_printable_map)
+    return replace_non_printing_char
+replace_nonprint = get_non_printing_char_replacer(" ")
+
+
+
+def normalize_text(text: str) -> str:
+    """Post-processing function for CSV data"""
+    if not isinstance(text, str):
+        return text
+    clean = mpn.normalize(text)  # Normalize punctuation
+    clean = replace_nonprint(clean)  # Remove non-printable characters
+    clean = unicodedata.normalize("NFKC", clean)  # Normalize Unicode characters
+    return clean
 
 def parse_usfm_to_csv(book_name, usfm_content, project_id):
     """ Convert USFM content to CSV format and return extracted data """
     try:
         my_parser = USFMParser(usfm_content)  # Initialize parser
         output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text
-        logging.info(f"Extracted {len(output)} verses from {book_name}")
-        if not output:
+        
+        # Normalize parsed output
+        processed_output = [
+            [normalize_text(value).replace("\n", " ") if isinstance(value, str) else value for value in row]
+            for row in output]
+        
+        logging.info(f"Extracted {len(processed_output)} verses from {book_name}")
+        if not processed_output:
             logging.error(f"No data extracted for {book_name}!")
         else:
-            logging.info(f"Extracted {len(output)} verses for {book_name}")
+            logging.info(f"Extracted {len(processed_output)} verses for {book_name}")
 
-        return output  #  Ensure we return the extracted verse data
+        return processed_output  #  Ensure we return the extracted verse data
     except Exception as e:
         logging.error(f"Error processing USFM content for {book_name}: {str(e)}")
         return None
@@ -92,18 +124,23 @@ def insert_verses_into_db(book_name,project_id, verse_data, session):
 
 
 def update_verses_in_db(book_name, project_id, book_id, verse_data, session):
-    """ Update existing verses in the `verses` table without duplicating, based on `book_id` and `project_id`. """
+    """ 
+    Update verses in the `verses` table by **deleting existing verses** for the book first 
+    and then inserting the new verse data.
+    """
     
     if not verse_data:
         logging.error(f"No verse data found for book {book_name}, skipping update.")
         return
 
     try:
-        # Fetch all existing verses for this book and project into a dictionary
-        existing_verses = {
-            (v.chapter, v.verse): v
-            for v in session.query(Verse).filter(Verse.book_id == book_id).all()
-        }
+        # Step 1: Delete all existing verses for the book
+        session.query(Verse).filter(Verse.book_id == book_id).delete()
+        
+        logging.info(f"Deleted existing verses for {book_name} (Book ID: {book_id}, Project ID: {project_id})")
+
+        # Step 2: Insert new verses from the updated USFM
+        new_verses = []
         for row in verse_data:
             if len(row) >= 4:
                 csv_book, chapter, verse, text = row[0], row[1], row[2], row[3]
@@ -112,14 +149,20 @@ def update_verses_in_db(book_name, project_id, book_id, verse_data, session):
                 if not str(chapter).isdigit() or not str(verse).strip() or not text.strip():
                     logging.warning(f"Skipping invalid data: Chapter {chapter}, Verse {verse}")
                     continue
-                verse_key = (int(chapter), str(verse))
 
-                if verse_key in existing_verses:
-                    #  Update existing verse
-                    existing_verses[verse_key].text = text.replace("\n", " ")
-                    logging.info(f"Updated verse {chapter}:{verse} in {book_name}")
-                else:
-                    logging.warning(f"Verse {chapter}:{verse} does not exist, skipping update.")
+                new_verses.append(Verse(
+                    book_id=book_id,
+                    chapter=int(chapter),
+                    verse=str(verse),
+                    text=text.replace("\n", " ")  # Clean text by removing line breaks
+                ))
+
+        # Bulk insert new verses
+        if new_verses:
+            session.bulk_save_objects(new_verses)
+            logging.info(f"Inserted {len(new_verses)} new verses for {book_name} (Book ID: {book_id})")
+        else:
+            logging.warning(f"No valid verses extracted for {book_name}")
 
         session.commit()
         logging.info(f"Successfully updated verses for {book_name} (Book ID: {book_id}, Project ID: {project_id})")
@@ -129,8 +172,16 @@ def update_verses_in_db(book_name, project_id, book_id, verse_data, session):
         session.rollback()
 
 
+
 def parse_verse_number(verse):
     """Convert verse numbers into sortable format (handles single verses and ranges like '1-2')."""
     if '-' in verse:
         return int(verse.split('-')[0])  # Take the first number in range (e.g., '1-2' → 1)
     return int(verse)  # Convert single verse to int
+
+def verses_to_dict( verse, text):
+    """Helper function to convert verses to a dictionary."""
+    return {
+        "verse": verse,
+        "text": text
+    }

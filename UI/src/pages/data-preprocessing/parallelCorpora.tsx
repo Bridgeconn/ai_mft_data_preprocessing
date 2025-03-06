@@ -102,7 +102,7 @@ const ParallelCorpora: React.FC = () => {
   const fetchListBibles = async (repo: string, selectedRepo: string) => {
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_bibles/?project_name=${selectedRepo}`
+        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_books/?project_name=${selectedRepo}`
       );
 
       // Handle different response scenarios
