@@ -38,6 +38,12 @@ class USFMUploadRequest(BaseModel):
 async def add_project(request: ProjectRequest):
     """ Add a new project and return the project ID """
     session = SessionLocal()
+    project_name = request.project_name.strip()
+
+    # Validate project name (Ensure it's not empty after trimming)
+    if not project_name:
+        session.close()
+        raise HTTPException(status_code=400, detail="Project name cannot be empty")
 
     # Check if the project already exists
     existing_project = session.query(Project).filter_by(
@@ -1020,10 +1026,6 @@ async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: st
                     "text_1": text_1,
                     "text_2": text_2
                 })
-
-        # if not parallel_corpora:
-        #     raise HTTPException(status_code=404, detail="No parallel corpus data found")
-
 
         if not parallel_corpora :
             raise HTTPException(status_code=404, detail="No parallel corpus data found")
