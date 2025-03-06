@@ -1,6 +1,7 @@
+from http.client import HTTPException
 import sys
 from usfm_grammar import USFMParser,Filter
-from db_models import  Book, Verse
+from db_models import Project, Book, Verse
 import logging
 import hashlib
 import unicodedata
@@ -182,3 +183,18 @@ def verses_to_dict( verse, text):
         "verse": verse,
         "text": text
     }
+
+def get_project_id(session,project_name):
+    project = session.query(Project).filter(Project.project_name == project_name).first()
+    if not project:
+            raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found")        
+    return project.project_id
+
+def get_book_id(session, project_name, book_name):
+    project_id = get_project_id(session,project_name)
+    book = session.query(Book).filter(Book.project_id == project_id, Book.book_name == book_name).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    book_id = book.book_id
+    return book_id
+        
