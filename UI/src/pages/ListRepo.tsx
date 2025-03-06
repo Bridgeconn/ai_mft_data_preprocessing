@@ -8,7 +8,7 @@ import {
   Book,
   BookLock,
   ArrowDownToLine,
-  FileSpreadsheet,
+  FileCog,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -386,7 +386,7 @@ const ListRepo: React.FC = () => {
                     variant="secondary"
                     onClick={() => navigate("/createdataset")}
                   >
-                    <FileSpreadsheet className="h-4 w-4" />
+                    <FileCog className="h-6 w-6" />
                   </Button>
                 )}
                 {activeTab === "projects" && (
