@@ -24,6 +24,7 @@ import { useStore } from "@/stores/Store";
 import MultiSelect from "@/components/MultiSelect";
 import { API } from "@/services/Api";
 import { useAppEffects } from "@/hooks/UseAppEffects";
+import axios from "axios";
 
 interface Option {
   value: string;
@@ -63,7 +64,10 @@ const CreateRepo: React.FC = () => {
   const [selectedOptions, setSelectedOptions] = useState<Option[]>([]);
   const access_token = useStore((state) => state.access_token);
   const [languageKey, setLanguageKey] = useState(0); // Key to force reload
-  const [errors, setErrors] = useState({ language_code: "", language_name: "" });
+  const [errors, setErrors] = useState({
+    language_code: "",
+    language_name: "",
+  });
 
   useAppEffects({
     access_token,
@@ -216,6 +220,20 @@ const CreateRepo: React.FC = () => {
         isError: false,
         type: "project",
       });
+
+      //hackathon
+      if (selectedOptions[0]?.value === "bible") {
+        console.log("Executing add_project endpoint");
+        const response = await axios.post(
+          `${import.meta.env.VITE_FASTAPI_BASE_URL}/add_project`,
+          {
+            project_name: formData.projectName,
+          }
+        );
+        console.log("Response from add_project endpoint:", response);
+      }
+      //hackathon
+
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.log("Error details:", error);
@@ -259,20 +277,20 @@ const CreateRepo: React.FC = () => {
     }
   };
 
-  const handleInputChange = (field:any) => (e:any) => {
+  const handleInputChange = (field: any) => (e: any) => {
     const value = e.target.value.trim();
     setNewLanguage((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
     if (value) {
       setErrors((prev) => ({
         ...prev,
-        [field]: ""
+        [field]: "",
       }));
     }
   };
-  
+
   return (
     <>
       <Card className="max-w-xl mx-auto mt-14">
@@ -421,61 +439,69 @@ const CreateRepo: React.FC = () => {
 
       {/* Language Dialog */}
       <Dialog
-      open={languageDialogOpen}
-      onOpenChange={(open) => {
-        setLanguageDialogOpen(open);
-        if (!open) {
-          setNewLanguage({ language_code: "", language_name: "" });
-          setErrors({ language_code: "", language_name: "" });
-        }
-      }}
-    >
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Add New Language</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-6">
-          <div className="space-y-1">
-            <div>
-              <Label>Language Code <span className="text-red-500">*</span></Label>
+        open={languageDialogOpen}
+        onOpenChange={(open) => {
+          setLanguageDialogOpen(open);
+          if (!open) {
+            setNewLanguage({ language_code: "", language_name: "" });
+            setErrors({ language_code: "", language_name: "" });
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add New Language</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-6">
+            <div className="space-y-1">
+              <div>
+                <Label>
+                  Language Code <span className="text-red-500">*</span>
+                </Label>
+              </div>
+              <Input
+                value={newLanguage.language_code}
+                onChange={handleInputChange("language_code")}
+                placeholder="Enter language code"
+                className={errors.language_code ? "border-red-500" : ""}
+                required
+              />
+              {errors.language_code && (
+                <span className="text-xs text-red-500">
+                  {errors.language_code}
+                </span>
+              )}
             </div>
-            <Input
-              value={newLanguage.language_code}
-              onChange={handleInputChange('language_code')}
-              placeholder="Enter language code"
-              className={errors.language_code ? "border-red-500" : ""}
-              required
-            />
-            {errors.language_code && (
-              <span className="text-xs text-red-500">{errors.language_code}</span>
-            )}
-          </div>
-          <div className="space-y-1">
-            <div>
-              <Label>Language Name <span className="text-red-500">*</span></Label>
+            <div className="space-y-1">
+              <div>
+                <Label>
+                  Language Name <span className="text-red-500">*</span>
+                </Label>
+              </div>
+              <Input
+                value={newLanguage.language_name}
+                onChange={handleInputChange("language_name")}
+                placeholder="Enter language name"
+                className={errors.language_name ? "border-red-500" : ""}
+                required
+              />
+              {errors.language_name && (
+                <span className="text-xs text-red-500">
+                  {errors.language_name}
+                </span>
+              )}
             </div>
-            <Input
-              value={newLanguage.language_name}
-              onChange={handleInputChange('language_name')}
-              placeholder="Enter language name"
-              className={errors.language_name ? "border-red-500" : ""}
-              required
-            />
-            {errors.language_name && (
-              <span className="text-xs text-red-500">{errors.language_name}</span>
-            )}
+            <div>
+              <Button
+                onClick={handleAddLanguage}
+                className="w-full bg-green-600 hover:bg-green-700"
+              >
+                Add Language
+              </Button>
+            </div>
           </div>
-          <div>
-            <Button
-              onClick={handleAddLanguage}
-              className="w-full bg-green-600 hover:bg-green-700"
-            >
-              Add Language
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
     </>
   );
 };

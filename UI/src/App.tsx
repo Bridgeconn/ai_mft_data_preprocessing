@@ -14,7 +14,7 @@ import Profile from "./pages/profilePage/Profile";
 import RepoPage from "./pages/repo/[slug]";
 import { ViewFile } from "./pages/ViewFile";
 import { Toaster } from "./components/ui/toaster";
-import ParallelCorpora from "./pages/dataset/parallelCorpora";
+import ParallelCorpora from "./pages/data-preprocessing/parallelCorpora";
 function AppContent() {
   const location = useLocation();
   // Check if the current route is /signin

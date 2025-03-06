@@ -167,11 +167,12 @@ const UploadFile: React.FC<UploadFileProps> = ({
           return;
         }
 
-        if (onlyFiles.length > 20) {
+        if (onlyFiles.length > 100) {
           toast({
             variant: "destructive",
             title: "Upload failed",
-            description: "You can only upload a maximum of 20 files at a time.",
+            description:
+              "You can only upload a maximum of 100 files at a time.",
           });
           return;
         }
@@ -419,7 +420,7 @@ const UploadFile: React.FC<UploadFileProps> = ({
                   <div className="text-xs text-gray-500">
                     {uploadMode
                       ? "Upload entire folder contents"
-                      : "Maximum 20 files"}
+                      : "Maximum 100 files"}
                   </div>
                 </div>
               </Label>
