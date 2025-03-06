@@ -1021,8 +1021,8 @@ async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: st
                     "text_2": text_2
                 })
 
-        if not parallel_corpora:
-            raise HTTPException(status_code=404, detail="No parallel corpus data found")
+        # if not parallel_corpora:
+        #     raise HTTPException(status_code=404, detail="No parallel corpus data found")
 
 
         if not parallel_corpora :
@@ -1040,7 +1040,8 @@ async def get_parallel_corpora_texts_csv(project_name_1: str, project_name_2: st
 
         # Write CSV headers
         writer.writerow(["Text_1", "Text_2"])
-        writer.writerows(parallel_corpora )
+        for row in parallel_corpora:
+            writer.writerow([row["text_1"], row["text_2"]])
         output.seek(0)
 
         return StreamingResponse(
