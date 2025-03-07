@@ -386,7 +386,7 @@ const ListRepo: React.FC = () => {
                     variant="secondary"
                     onClick={() => navigate("/createdataset")}
                   >
-                    <FileSpreadsheet className="h-4 w-4" />
+                    <FileSpreadsheet className="h-6 w-6" />
                   </Button>
                 )}
                 {activeTab === "projects" && (

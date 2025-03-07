@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import SelectProjects from "./selectProjects";
+import SelectProjects from "./SelectProjects";
 import { API } from "@/services/Api";
 import { Spinner } from "@/components/ui/spinner";
 import { useStore } from "@/stores/Store";
@@ -193,7 +193,8 @@ const ParallelCorpora: React.FC = () => {
       // Create a link element and trigger download
       const link = document.createElement("a");
       link.href = window.URL.createObjectURL(blob);
-      link.download = `parallel_corpora_${selectedProject1}_${selectedProject2}.csv`;
+      const fileName = withBCV ? `parallel_corpora_BCV_${selectedProject1}_${selectedProject2}.csv`: `parallel_corpora_${selectedProject1}_${selectedProject2}.csv`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
