@@ -193,7 +193,8 @@ const ParallelCorpora: React.FC = () => {
       // Create a link element and trigger download
       const link = document.createElement("a");
       link.href = window.URL.createObjectURL(blob);
-      link.download = `parallel_corpora_${selectedProject1}_${selectedProject2}.csv`;
+      const fileName = withBCV ? `parallel_corpora_BCV_${selectedProject1}_${selectedProject2}.csv`: `parallel_corpora_${selectedProject1}_${selectedProject2}.csv`;
+      link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

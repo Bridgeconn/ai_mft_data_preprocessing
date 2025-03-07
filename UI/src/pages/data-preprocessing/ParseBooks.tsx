@@ -29,7 +29,7 @@ const ParseBooks = ({ owner, repo }: ParseBooksProps) => {
   const fetchListBibles = async () => {
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_bibles/?project_name=${repo}`
+        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_books/?project_name=${repo}`
       );
       const fetchedBooks = response?.data?.bibles[0]?.books || [];
       return fetchedBooks;
