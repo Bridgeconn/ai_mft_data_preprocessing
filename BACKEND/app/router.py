@@ -589,30 +589,10 @@ async def get_parallel_corpora_withbcv(
             book_id_1 = book.book_id
             book_id_2 = books_2_dict[book_name]
 
-            # Fetch verses for both projects
-            verses_1 = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id_1).all()
-            verses_2 = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id_2).all()
-
-            # Convert verses into dictionaries for easy lookup
-            verses_1_dict = {}
-            verses_2_dict = {}
-
-            # Store merged verses as they are
-            merged_verses_1 = {}
-            merged_verses_2 = {}
-
-            for chapter, verse, text in verses_1:
-                if "-" in verse:  
-                    merged_verses_1[(chapter, verse)] = text
-                else:
-                    verses_1_dict[(chapter, verse)] = text
-
-            for chapter, verse, text in verses_2:
-                if "-" in verse:  
-                    merged_verses_2[(chapter, verse)] = text
-                else:
-                    verses_2_dict[(chapter, verse)] = text
-
+            # get verses for book
+            verses_1_dict,merged_verses_1 = crud.get_verses(session, book_id_1)
+            verses_2_dict,merged_verses_2 = crud.get_verses(session, book_id_2)
+            
             # Align split verses only when necessary
             final_verses_1 = verses_1_dict.copy()
             final_verses_2 = verses_2_dict.copy()
@@ -625,8 +605,7 @@ async def get_parallel_corpora_withbcv(
                     final_verses_2[(chapter, merged_verse)] = merged_verses_2[(chapter, merged_verse)]
                 else:
                     # Merge split verses from Project 2
-                    split_verses = [str(v) for v in range(int(merged_verse.split("-")[0]), int(merged_verse.split("-")[1]) + 1)]
-                    merged_text_2 = " ".join([verses_2_dict.get((chapter, v), "") for v in split_verses]).strip()
+                    merged_text_2 = crud.get_merged_verse(merged_verse, verses_2_dict,chapter)
                     final_verses_1[(chapter, merged_verse)] = merged_text
                     final_verses_2[(chapter, merged_verse)] = merged_text_2 if merged_text_2 else None
 
@@ -634,8 +613,7 @@ async def get_parallel_corpora_withbcv(
                 if (chapter, merged_verse) in merged_verses_1:
                     continue  # Already handled
                 # Merge split verses from Project 1
-                split_verses = [str(v) for v in range(int(merged_verse.split("-")[0]), int(merged_verse.split("-")[1]) + 1)]
-                merged_text_1 = " ".join([verses_1_dict.get((chapter, v), "") for v in split_verses]).strip()
+                merged_text_1 = crud.get_merged_verse(merged_verse, verses_1_dict,chapter)
                 final_verses_2[(chapter, merged_verse)] = merged_text
                 final_verses_1[(chapter, merged_verse)] = merged_text_1 if merged_text_1 else None
 
@@ -672,18 +650,13 @@ async def get_parallel_corpora_withbcv(
             )
 
         # Create CSV in memory
-        output = io.StringIO()
-        writer = csv.writer(output)
-        writer.writerow(["Book", "Chapter", "Verse", project_name_1, project_name_2])
-        for row in parallel_corpora:
-            writer.writerow([row["book"], row["chapter"], row["verse"], row[project_name_1], row[project_name_2]])
-
-        output.seek(0)
+        output = crud.create_csv(project_name_1,project_name_2, parallel_corpora,True)
+        
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
             headers={
-                "Content-Disposition": 'attachment; filename="Parallel_corpus_withbcv.csv"',
+                "Content-Disposition": 'attachment; filename="'+project_name_1 + "-" + project_name_2+'_bcv.csv"',
                 "Content-Type": "application/octet-stream",  # Forces download
             }
         )
@@ -693,7 +666,7 @@ async def get_parallel_corpora_withbcv(
         raise e  # Return HTTP exception with message
 
     except Exception as e:
-        logging.error(f"Error generating parallel corpora: {str(e)}")
+        logging.error(f"Error generating parallel corpora with BCV: {str(e)}")
         session.rollback()
         raise HTTPException(status_code=500, detail="Internal server error")
 
@@ -729,29 +702,9 @@ async def get_parallel_corpora_texts(project_name_1: str, project_name_2: str,
             book_id_1 = book.book_id
             book_id_2 = books_2_dict[book.book_name]
 
-            # Fetch verses for both projects
-            verses_1 = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id_1).all()
-
-            verses_2 = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id_2).all()
-
-            # Convert verses into dictionaries for easy lookup
-            verses_1_dict = {}
-            verses_2_dict = {}
-
-            merged_verses_1 = {}
-            merged_verses_2 = {}
-
-            for chapter, verse, text in verses_1:
-                if "-" in verse:
-                    merged_verses_1[(chapter, verse)] = text
-                else:
-                    verses_1_dict[(chapter, verse)] = text
-
-            for chapter, verse, text in verses_2:
-                if "-" in verse:
-                    merged_verses_2[(chapter, verse)] = text
-                else:
-                    verses_2_dict[(chapter, verse)] = text
+            # get verses for book
+            verses_1_dict,merged_verses_1 = crud.get_verses(session, book_id_1)
+            verses_2_dict,merged_verses_2 = crud.get_verses(session, book_id_2)
 
             final_verses_1 = verses_1_dict.copy()
             final_verses_2 = verses_2_dict.copy()
@@ -762,18 +715,16 @@ async def get_parallel_corpora_texts(project_name_1: str, project_name_2: str,
                     final_verses_1[(chapter, merged_verse)] = merged_text
                     final_verses_2[(chapter, merged_verse)] = merged_verses_2[(chapter, merged_verse)]
                 else:
-                    split_verses = [str(v) for v in range(int(merged_verse.split("-")[0]), int(merged_verse.split("-")[1]) + 1)]
-                    merged_text_2 = " ".join([verses_2_dict.get((chapter, v), "") for v in split_verses]).strip()
+                    merged_text_2 = crud.get_merged_verse(merged_verse, verses_2_dict,chapter)
                     final_verses_1[(chapter, merged_verse)] = merged_text
-                    final_verses_2[(chapter, merged_verse)] = merged_text_2 if merged_text_2 else None
+                    final_verses_2[(chapter, merged_verse)] = merged_text_2
 
             for (chapter, merged_verse), merged_text in merged_verses_2.items():
                 if (chapter, merged_verse) in merged_verses_1:
                     continue  
-                split_verses = [str(v) for v in range(int(merged_verse.split("-")[0]), int(merged_verse.split("-")[1]) + 1)]
-                merged_text_1 = " ".join([verses_1_dict.get((chapter, v), "") for v in split_verses]).strip()
+                merged_text_1 = crud.get_merged_verse(merged_verse, verses_1_dict,chapter)
                 final_verses_2[(chapter, merged_verse)] = merged_text
-                final_verses_1[(chapter, merged_verse)] = merged_text_1 if merged_text_1 else None
+                final_verses_1[(chapter, merged_verse)] = merged_text_1
 
             # Get all unique chapter-verse pairs and sort them
             all_keys = sorted(
@@ -803,20 +754,14 @@ async def get_parallel_corpora_texts(project_name_1: str, project_name_2: str,
                 status_code=200
             )
 
-        output = io.StringIO()
-        writer = csv.writer(output)
-
-        # Write CSV headers
-        writer.writerow([project_name_1, project_name_2])
-        for row in parallel_corpora:
-            writer.writerow([row[project_name_1], row[project_name_2]])
-        output.seek(0)
-
+        # Create CSV in memory
+        output = crud.create_csv(project_name_1,project_name_2, parallel_corpora,False)
+        
         return StreamingResponse(
             iter([output.getvalue()]),
             media_type="text/csv",
             headers={
-                "Content-Disposition": 'attachment; filename="Parallel_corpus_Texts.csv"',
+                "Content-Disposition": 'attachment; filename="'+project_name_1 + "-" + project_name_2+'.csv"',
                 "Content-Type": "application/octet-stream",  # Forces download
             }
         )
