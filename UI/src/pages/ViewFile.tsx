@@ -196,6 +196,8 @@ export const ViewFile: React.FC = () => {
           content={decodedContent}
           isMarkdown={false}
           fileName={fileName}
+          filePath={fileContent.path}
+          sha={fileContent.sha}
           isPreviewMode={isPreviewMode}
         />
       );
@@ -213,7 +215,15 @@ export const ViewFile: React.FC = () => {
     } else if (["xlsx", "xls"].includes(fileExtension)) {
       return <ExcelViewer content={fileContent.content} />;
     } else if (["pdf"].includes(fileExtension)) {
-      return <PDFViewer content={fileContent.content} onClose={() => navigateBack()} handleDownload={handleDownload} handleDelete={handleDelete} fileName={fileName}  />;
+      return (
+        <PDFViewer
+          content={fileContent.content}
+          onClose={() => navigateBack()}
+          handleDownload={handleDownload}
+          handleDelete={handleDelete}
+          fileName={fileName}
+        />
+      );
     } else {
       return <p className="text-gray-500">Unsupported file type.</p>;
     }
