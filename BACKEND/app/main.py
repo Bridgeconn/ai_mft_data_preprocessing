@@ -26,5 +26,3 @@ app.include_router(router.router)
 async def root():
     return {"message": "Data Analysis app is running successfully 🚀"}
 
-# Include the router
-app.include_router(router.router)
