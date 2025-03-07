@@ -1,6 +1,9 @@
+import csv
+from http.client import HTTPException
+import io
 import sys
 from usfm_grammar import USFMParser,Filter
-from db_models import  Book, Verse
+from db_models import Project, Book, Verse
 import logging
 import hashlib
 import unicodedata
@@ -43,14 +46,11 @@ def parse_usfm_to_csv(book_name, usfm_content, project_id):
     """ Convert USFM content to CSV format and return extracted data """
     try:
         my_parser = USFMParser(usfm_content)  # Initialize parser
-        output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text
-        
-        # Normalize parsed output
+        output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text      
         processed_output = [
-            [normalize_text(value).replace("\n", " ") if isinstance(value, str) else value for value in row]
-            for row in output]
-        
-        logging.info(f"Extracted {len(processed_output)} verses from {book_name}")
+            [re.sub(r"\s+", " ", value).strip() if isinstance(value, str) else value for value in row]
+            for row in output
+        ]            
         if not processed_output:
             logging.error(f"No data extracted for {book_name}!")
         else:
@@ -185,3 +185,51 @@ def verses_to_dict( verse, text):
         "verse": verse,
         "text": text
     }
+
+def get_project_id(session,project_name):
+    project = session.query(Project).filter(Project.project_name == project_name).first()
+    if not project:
+            raise HTTPException(status_code=404, detail=f"Project '{project_name}' not found")        
+    return project.project_id
+
+def get_book_id(session, project_name, book_name):
+    project_id = get_project_id(session,project_name)
+    book = session.query(Book).filter(Book.project_id == project_id, Book.book_name == book_name).first()
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    book_id = book.book_id
+    return book_id
+        
+def get_verses(session, book_id):
+    verses = session.query(Verse.chapter, Verse.verse, Verse.text).filter(Verse.book_id == book_id).all()
+    verses_dict = {}
+    merged_verses = {}
+    
+    for chapter, verse, text in verses:
+        if "-" in verse:  
+            merged_verses[(chapter, verse)] = text
+        else:
+            verses_dict[(chapter, verse)] = text
+    return verses_dict, merged_verses
+
+def get_merged_verse(merged_verse, verses_dict,chapter):
+    split_verses = [str(v) for v in range(int(merged_verse.split("-")[0]), int(merged_verse.split("-")[1]) + 1)]
+    merged_verse_text = " ".join([verses_dict.get((chapter, v), "") for v in split_verses]).strip()
+    return merged_verse_text if merged_verse_text else None
+
+def create_csv(project_name_1,project_name_2, parallel_corpora,bcv):
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    if bcv:
+        writer.writerow(["Book", "Chapter", "Verse", project_name_1, project_name_2])
+    else:
+        writer.writerow([project_name_1, project_name_2])    
+    for row in parallel_corpora:
+        if bcv:
+            writer.writerow([row["book"], row["chapter"], row["verse"], row[project_name_1], row[project_name_2]])
+        else:
+            writer.writerow([row[project_name_1], row[project_name_2]])    
+
+    output.seek(0)
+    return output
