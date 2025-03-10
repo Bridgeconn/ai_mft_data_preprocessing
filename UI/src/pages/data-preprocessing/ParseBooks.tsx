@@ -89,8 +89,9 @@ const ParseBooks = ({ owner, repo }: ParseBooksProps) => {
       const filesResponse = await API.get(
         `/api/v1/repos/${owner}/${repo}/contents/`
       );
-      const usfmFiles = filesResponse.data.filter((file: { name: string }) =>
-        file.name.endsWith(".usfm")
+      const usfmFiles = filesResponse.data.filter(
+        (file: { name: string }) =>
+          file.name.endsWith(".usfm") || file.name.endsWith(".SFM")
       );
       setUsfmCount(usfmFiles.length);
       if (usfmFiles.length === 0) return;

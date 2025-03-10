@@ -53,8 +53,10 @@ export const ViewFile: React.FC = () => {
       : (fileContent.size / 1024).toFixed(2) + " KB";
 
   // Determine whether "Copy" and "Lines" are enabled
-  const isCopyEnabled = ["txt", "md", "usfm", "csv"].includes(fileExtension);
-  const isLineEnabled = ["txt", "pdf", "md", "usfm", "csv"].includes(
+  const isCopyEnabled = ["txt", "md", "usfm", "sfm", "csv"].includes(
+    fileExtension
+  );
+  const isLineEnabled = ["txt", "pdf", "md", "usfm", "sfm", "csv"].includes(
     fileExtension
   );
   const isDownloadEnabled = ["pdf"].includes(fileExtension);
@@ -187,10 +189,13 @@ export const ViewFile: React.FC = () => {
         <TextViewer
           content={decodedContent}
           isMarkdown={true}
+          fileName={fileName}
+          filePath={fileContent.path}
+          sha={fileContent.sha}
           isPreviewMode={isPreviewMode}
         />
       );
-    } else if (["txt", "usfm", "json"].includes(fileExtension)) {
+    } else if (["txt", "usfm", "sfm", "json"].includes(fileExtension)) {
       return (
         <TextViewer
           content={decodedContent}
