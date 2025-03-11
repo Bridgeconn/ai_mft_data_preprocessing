@@ -40,15 +40,30 @@ services:
       - gitea
     volumes:
       - ./postgres:/var/lib/postgresql/data
+  
+  
+  ui:
+    build:
+      context: ../
+      dockerfile: ./docker/Dockerfile
+    healthcheck:
+      timeout: 45s
+      interval: 10s
+      retries: 10
+    container_name: gitea-ui
 
-      #Uncomment the following lines to enable the gitea-ui
-  # ui:
-  #   image: joeljosephgeorge/gitea-ui:v1.0.0
-  #   container_name: gitea-ui
-  #   restart: always
-  #   networks:
-  #     - gitea
-  #   ports:
-  #     - "3001:3001"
-  #   depends_on:
-  #     - server
+    environment:
+      - VITE_GITEA_BASE_URL=${VITE_GITEA_BASE_URL}
+      - VITE_GITEA_UI_URL=${VITE_GITEA_UI_URL}
+      - VITE_GITEA_ORG_NAME=${VITE_GITEA_ORG_NAME}
+      - VITE_GITEA_CLIENT_ID=${VITE_GITEA_CLIENT_ID}
+      - VITE_GITEA_CLIENT_SECRET=${VITE_GITEA_CLIENT_SECRET}
+      - VITE_GITEA_REDIRECT_URI=${VITE_GITEA_REDIRECT_URI}
+      - VITE_FASTAPI_BASE_URL=${VITE_FASTAPI_BASE_URL}
+    restart: always
+    networks:
+      - gitea
+    ports:
+      - "3001:3001"
+    depends_on:
+      - server
