@@ -40,31 +40,26 @@ services:
       - gitea
     volumes:
       - ./postgres:/var/lib/postgresql/data
+  
+  
   ui:
-    # image: joeljosephgeorge/gitea-ui:v1.0.3
     build:
-      context: ../UI
-      dockerfile: Dockerfile
+      context: ../
+      dockerfile: ./docker/Dockerfile
     healthcheck:
       timeout: 45s
       interval: 10s
       retries: 10
     container_name: gitea-ui
 
-    # env_file: 
-    #   - .env.local
     environment:
-      - VITE_GITEA_BASE_URL=http://localhost:3000
-      - VITE_GITEA_UI_URL=http://localhost:3001
-      - VITE_GITEA_ORG_NAME=BCS
-      - VITE_FASTAPI_BASE_URL=http://localhost:8000
-      #The below values are dummy values, replace them with your own values
-      #the values where not taking when running the api and ui in docker, i could run it by adding 
-      #them in the .env.local file and adding the file in the env_file section
-      - VITE_GITEA_CLIENT_ID = {your-client-id}
-      - VITE_GITEA_CLIENT_SECRET = {your-client-secret}
-      - VITE_GITEA_REDIRECT_URI=http://localhost:3001/oauth/callback
-
+      - VITE_GITEA_BASE_URL=${VITE_GITEA_BASE_URL}
+      - VITE_GITEA_UI_URL=${VITE_GITEA_UI_URL}
+      - VITE_GITEA_ORG_NAME=${VITE_GITEA_ORG_NAME}
+      - VITE_GITEA_CLIENT_ID=${VITE_GITEA_CLIENT_ID}
+      - VITE_GITEA_CLIENT_SECRET=${VITE_GITEA_CLIENT_SECRET}
+      - VITE_GITEA_REDIRECT_URI=${VITE_GITEA_REDIRECT_URI}
+      - VITE_FASTAPI_BASE_URL=${VITE_FASTAPI_BASE_URL}
     restart: always
     networks:
       - gitea
