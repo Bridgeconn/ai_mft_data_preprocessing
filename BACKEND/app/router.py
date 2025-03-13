@@ -1,5 +1,5 @@
 import itertools
-from fastapi import APIRouter, HTTPException,File,UploadFile,Query
+from fastapi import APIRouter, HTTPException,File,UploadFile,Query, Request, Depends
 from fastapi import Body
 from pydantic import BaseModel
 from database import SessionLocal
@@ -14,6 +14,8 @@ from fastapi.responses import StreamingResponse
 import crud
 from fastapi.responses import JSONResponse
 import base64
+from auth import validate_token
+from utils import input_token
 
 
 
@@ -69,13 +71,20 @@ async def add_project(request: ProjectRequest):
 
 
 @router.get("/list_projects/")
-async def list_projects(project_name: str = Query(None)):
+@validate_token
+async def list_projects(request: Request, project_name: str = Query(None),
+                         user_details=Depends(input_token),
+                         user_info: dict = None):
     """
     List all projects or fetch a specific project by project_name.
     If project_name is provided, returns the matching project or null if not found.
     """
     session = SessionLocal()
     try:
+
+        username = user_info.get("login")
+        print(f"User {username} is fetching projects")
+
         if project_name:
             project = session.query(Project).filter(Project.project_name == project_name).first()
             return {"project": project if project else None}
@@ -218,7 +227,8 @@ async def update_usfm(
         try:
             usfm_bytes = base64.b64decode(encoded_usfm)
             usfm = usfm_bytes.decode("utf-8")  # Convert bytes to string
-            usfm=crud.normalize_text(usfm)
+            #errors are not displaying properly
+            # usfm=crud.normalize_text(usfm)
         except Exception as e:
             logging.error(f"Failed to decode USFM content: {str(e)}")
             raise HTTPException(status_code=400, detail="Invalid encoded USFM content")
