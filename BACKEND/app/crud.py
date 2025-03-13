@@ -46,11 +46,15 @@ def parse_usfm_to_csv(book_name, usfm_content, project_id):
     """ Convert USFM content to CSV format and return extracted data """
     try:
         my_parser = USFMParser(usfm_content)  # Initialize parser
-        output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text      
+        output = my_parser.to_list(include_markers=Filter.BCV + Filter.TEXT)  # Extract BCV and Text   
         processed_output = [
-            [re.sub(r"\s+", " ", value).strip() if isinstance(value, str) else value for value in row]
-            for row in output
-        ]            
+            [normalize_text(value).replace("\n", " ") if isinstance(value, str) else value for value in row]
+            for row in output]   
+        # processed_output = [
+        #     [re.sub(r"\s+", " ", value).strip() if isinstance(value, str) else value for value in row]
+        #     for row in output
+        # ]   
+                 
         if not processed_output:
             logging.error(f"No data extracted for {book_name}!")
         else:
