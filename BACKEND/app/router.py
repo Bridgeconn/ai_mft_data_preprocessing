@@ -227,8 +227,7 @@ async def update_usfm(
         try:
             usfm_bytes = base64.b64decode(encoded_usfm)
             usfm = usfm_bytes.decode("utf-8")  # Convert bytes to string
-            #errors are not displaying properly
-            # usfm=crud.normalize_text(usfm)
+            usfm=crud.normalize_text(usfm)
         except Exception as e:
             logging.error(f"Failed to decode USFM content: {str(e)}")
             raise HTTPException(status_code=400, detail="Invalid encoded USFM content")
