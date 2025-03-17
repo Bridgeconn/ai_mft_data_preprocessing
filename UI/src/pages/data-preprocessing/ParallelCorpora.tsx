@@ -2,11 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import SelectProjects from "./SelectProjects";
-import { API } from "@/services/Api";
+import { API, FastAPI } from "@/services/Api";
 import { Spinner } from "@/components/ui/spinner";
 import { useStore } from "@/stores/Store";
 import { setHeader } from "@/services/Api";
-import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
 // import SelectBooks from "./SelectBooks";
@@ -101,10 +100,9 @@ const ParallelCorpora: React.FC = () => {
 
   const fetchListBibles = async (repo: string, selectedRepo: string) => {
     try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_books/?project_name=${selectedRepo}`
+      const response = await FastAPI.get(
+        `/list_books/?project_name=${selectedRepo}`
       );
-
       // Handle different response scenarios
       if (repo === "repo1") {
         // Get the bibles array or default to empty array
@@ -175,11 +173,11 @@ const ParallelCorpora: React.FC = () => {
     try {
       // Determine which API endpoint to use based on withBCV
       const apiEndpoint = withBCV
-        ? `${import.meta.env.VITE_FASTAPI_BASE_URL}/parallel_corpora/withbcv/`
-        : `${import.meta.env.VITE_FASTAPI_BASE_URL}/parallel_corpora/withoutbcv/`;
+        ? `/parallel_corpora/withbcv/`
+        : `/parallel_corpora/withoutbcv/`;
 
       // Make the API call
-      const response = await axios.get(apiEndpoint, {
+      const response = await FastAPI.get(apiEndpoint, {
         params: {
           project_name_1: selectedProject1,
           project_name_2: selectedProject2,

@@ -37,10 +37,11 @@ class USFMUploadRequest(BaseModel):
 
 
 @router.post("/add_project/")
-async def add_project(request: ProjectRequest):
+@validate_token
+async def add_project(request: Request, project_request: ProjectRequest, user_details=Depends(input_token)):
     """ Add a new project and return the project ID """
     session = SessionLocal()
-    project_name = request.project_name.strip()
+    project_name = project_request.project_name.strip()
 
     # Validate project name (Ensure it's not empty after trimming)
     if not project_name:
@@ -49,7 +50,7 @@ async def add_project(request: ProjectRequest):
 
     # Check if the project already exists
     existing_project = session.query(Project).filter_by(
-        project_name=request.project_name
+        project_name=project_request.project_name
     ).first()
 
     if existing_project:
@@ -58,7 +59,7 @@ async def add_project(request: ProjectRequest):
 
     # Insert new project
     new_project = Project(
-        project_name=request.project_name
+        project_name=project_request.project_name
     )
     session.add(new_project)
     session.commit()
@@ -73,8 +74,7 @@ async def add_project(request: ProjectRequest):
 @router.get("/list_projects/")
 @validate_token
 async def list_projects(request: Request, project_name: str = Query(None),
-                         user_details=Depends(input_token),
-                         user_info: dict = None):
+                         user_details=Depends(input_token)):
     """
     List all projects or fetch a specific project by project_name.
     If project_name is provided, returns the matching project or null if not found.
@@ -82,8 +82,8 @@ async def list_projects(request: Request, project_name: str = Query(None),
     session = SessionLocal()
     try:
 
-        username = user_info.get("login")
-        print(f"User {username} is fetching projects")
+        # username = user_info.get("login")
+        # print(f"User {username} is fetching projects")
 
         if project_name:
             project = session.query(Project).filter(Project.project_name == project_name).first()
@@ -104,8 +104,9 @@ async def list_projects(request: Request, project_name: str = Query(None),
 
 
 @router.post("/upload_usfm/")
-async def upload_usfm(
-    request: USFMUploadRequest
+@validate_token
+async def upload_usfm(request: Request,
+    project_request: USFMUploadRequest, user_details=Depends(input_token)
 ):
     """ 
     Upload a USFM content as a string, process it, and store data in DB.
@@ -115,9 +116,9 @@ async def upload_usfm(
 
     try:
         # Get project_id from project_name
-        project_name = request.project_name
-        usfm_sha = request.usfm_sha
-        encoded_usfm = request.encoded_usfm
+        project_name = project_request.project_name
+        usfm_sha = project_request.usfm_sha
+        encoded_usfm = project_request.encoded_usfm
         project_id = crud.get_project_id(session,project_name)
         logging.info(f"Processing USFM file for project: {project_name} (Project ID: {project_id})")
 
@@ -209,17 +210,18 @@ async def upload_usfm(
 
 
 @router.put("/update_usfm/")
-async def update_usfm(
-    request: USFMUploadRequest
+@validate_token
+async def update_usfm(request: Request,
+    project_request: USFMUploadRequest, user_details=Depends(input_token)
 ):
     """ Update an existing USFM file, reprocess it, and update both book and verse tables properly. """
     session = SessionLocal()
 
     try:
         # Extract values from request body
-        project_name = request.project_name
-        usfm_sha = request.usfm_sha
-        encoded_usfm = request.encoded_usfm
+        project_name = project_request.project_name
+        usfm_sha = project_request.usfm_sha
+        encoded_usfm = project_request.encoded_usfm
         # Extract book name from USFM
         project_id = crud.get_project_id(session,project_name)
 
@@ -227,7 +229,8 @@ async def update_usfm(
         try:
             usfm_bytes = base64.b64decode(encoded_usfm)
             usfm = usfm_bytes.decode("utf-8")  # Convert bytes to string
-            usfm=crud.normalize_text(usfm)
+            #errors are not displaying properly
+            # usfm=crud.normalize_text(usfm)
         except Exception as e:
             logging.error(f"Failed to decode USFM content: {str(e)}")
             raise HTTPException(status_code=400, detail="Invalid encoded USFM content")
@@ -298,7 +301,9 @@ async def update_usfm(
 
 
 @router.get("/list_books/")
-async def list_books(project_name: str = Query(None)):
+@validate_token
+async def list_books(request: Request,project_name: str = Query(None),
+                      user_details=Depends(input_token)):
     """ Retrieve all Bibles (projects) along with their books and their status, optionally filtering by project name """
     session = SessionLocal()
     try:
@@ -337,7 +342,9 @@ async def list_books(project_name: str = Query(None)):
 
 
 @router.get("/find_missing_verses/")
-async def find_missing_verses(book_name: str, project_name: str):
+@validate_token
+async def find_missing_verses(request: Request,book_name: str, project_name: str,
+                              user_details=Depends(input_token)):
     """Find missing verses for a given book_id and project_id by comparing with versification.json."""
     
     session = SessionLocal()
@@ -409,7 +416,9 @@ async def find_missing_verses(book_name: str, project_name: str):
 
 
 @router.get("/book/usfm/")
-async def get_book_usfm(project_name: str, book_name: str):
+@validate_token
+async def get_book_usfm(request: Request,project_name: str, book_name: str,
+                              user_details=Depends(input_token)):
     """
     Get the USFM content of a book from the database.
     """
@@ -443,7 +452,9 @@ async def get_book_usfm(project_name: str, book_name: str):
 
 
 @router.get("/book/json/")
-async def get_book_json(project_name: str, book_name: str):
+@validate_token
+async def get_book_json(request: Request,project_name: str, book_name: str,
+                              user_details=Depends(input_token)):
     """
     Get the book's content in JSON format.
     """
@@ -485,7 +496,9 @@ async def get_book_json(project_name: str, book_name: str):
 
 
 @router.get("/chapter/json/")
-async def get_chapter_json(project_name: str, book_name: str, chapter: int):
+@validate_token
+async def get_chapter_json(request: Request,project_name: str, book_name: str,
+                            chapter: int, user_details=Depends(input_token)):
     """
     Get the chapter's content in JSON format.
     """
@@ -527,8 +540,10 @@ async def get_chapter_json(project_name: str, book_name: str, chapter: int):
 
 
 @router.get("/book/chapters/")
+@validate_token
 # async def get_book_chapters(book_id: int):
-async def get_book_chapters(project_name: str, book_name: str):
+async def get_book_chapters(request: Request, project_name: str, book_name: str,
+                            user_details=Depends(input_token)):
     """
     Get the list of chapters available in a book.
     """
@@ -563,10 +578,13 @@ async def get_book_chapters(project_name: str, book_name: str):
 
 
 @router.get("/parallel_corpora/withbcv/")
+@validate_token
 async def get_parallel_corpora_withbcv(
+    request: Request,
     project_name_1: str, 
     project_name_2: str, 
-    response_type: str = Query("csv", description="Set 'json' for JSON response, 'csv' for file download")
+    response_type: str = Query("csv", description="Set 'json' for JSON response, 'csv' for file download"),
+    user_details=Depends(input_token)
 ):
     """
     Generate and return the parallel corpus between two projects (two languages) in CSV or JSON format.
@@ -684,8 +702,12 @@ async def get_parallel_corpora_withbcv(
 
 
 @router.get("/parallel_corpora/withoutbcv/")
-async def get_parallel_corpora_texts(project_name_1: str, project_name_2: str,
-                                         response_type: str = Query("csv", description="Set 'json' for JSON response, 'csv' for file download")):
+@validate_token
+async def get_parallel_corpora_texts(request: Request,
+                                     project_name_1: str, project_name_2: str,
+                                         response_type: str = Query("csv",
+                                 description="Set 'json' for JSON response, 'csv' for file download"),
+                                     user_details=Depends(input_token)):
     """
     Generate and return the parallel corpus between two projects in CSV format with only Text_1 and Text_2.
     """
