@@ -1,4 +1,4 @@
-import { apiService, setHeader } from "@/services/Api";
+import { apiService, setFastAPIHeader, setHeader } from "@/services/Api";
 import { setupTokenRefresh } from "@/utils/refreshToken";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
@@ -176,6 +176,7 @@ export const useStore = create<StoreState>()(
         set({ access_token, refresh_token, expires_in });
         set({ oauth_state: null });
         setHeader(access_token);
+        setFastAPIHeader(access_token);
         setupTokenRefresh(expires_in);
 
         // Initialize repository after token is set

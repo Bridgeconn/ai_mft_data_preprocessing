@@ -1,6 +1,5 @@
 import { Button } from "@/components/ui/button";
-import { API } from "@/services/Api";
-import axios from "axios";
+import { API, FastAPI } from "@/services/Api";
 import { useState } from "react";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 
@@ -28,9 +27,7 @@ const ParseBooks = ({ owner, repo }: ParseBooksProps) => {
 
   const fetchListBibles = async () => {
     try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_books/?project_name=${repo}`
-      );
+      const response = await FastAPI.get(`/list_books/?project_name=${repo}`);
       const fetchedBooks = response?.data?.bibles[0]?.books || [];
       return fetchedBooks;
     } catch (error) {
@@ -46,8 +43,9 @@ const ParseBooks = ({ owner, repo }: ParseBooksProps) => {
       const responseData = contentResponse.data.content;
       if (responseData) {
         try {
-          const uploadResponse = await axios[method](
-            `${import.meta.env.VITE_FASTAPI_BASE_URL}/${method === "post" ? "upload_usfm" : "update_usfm"}`,
+          const uploadResponse = await FastAPI[method](
+            `/${method === "post" ? "upload_usfm" : "update_usfm"}`,
+
             {
               project_name: repo,
               usfm_sha: contentResponse?.data?.sha,
@@ -89,8 +87,9 @@ const ParseBooks = ({ owner, repo }: ParseBooksProps) => {
       const filesResponse = await API.get(
         `/api/v1/repos/${owner}/${repo}/contents/`
       );
-      const usfmFiles = filesResponse.data.filter((file: { name: string }) =>
-        file.name.endsWith(".usfm")
+      const usfmFiles = filesResponse.data.filter(
+        (file: { name: string }) =>
+          file.name.endsWith(".usfm") || file.name.endsWith(".SFM")
       );
       setUsfmCount(usfmFiles.length);
       if (usfmFiles.length === 0) return;

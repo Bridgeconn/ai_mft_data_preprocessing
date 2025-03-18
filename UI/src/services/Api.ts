@@ -11,6 +11,16 @@ export const setHeader = (access_token: string | null) => {
   API.defaults.headers.common["Authorization"] = `token ${access_token}`;
 };
 
+const FastAPIBaseURL = import.meta.env.VITE_FASTAPI_BASE_URL as string;
+
+export const FastAPI = axios.create({
+  baseURL: FastAPIBaseURL,
+})
+
+export const setFastAPIHeader = (access_token: string | null) => {
+  FastAPI.defaults.headers.common["Authorization"] = `Bearer token ${access_token}`;
+};
+
 /**
  * Axios instance for making authenticated requests.
  */

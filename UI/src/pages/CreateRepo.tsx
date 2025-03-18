@@ -22,9 +22,8 @@ import { useNavigate } from "react-router-dom";
 import FeedbackDialog from "@/components/FeedbackDialog";
 import { useStore } from "@/stores/Store";
 import MultiSelect from "@/components/MultiSelect";
-import { API } from "@/services/Api";
+import { API, FastAPI } from "@/services/Api";
 import { useAppEffects } from "@/hooks/UseAppEffects";
-import axios from "axios";
 
 interface Option {
   value: string;
@@ -199,20 +198,38 @@ const CreateRepo: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    let giteaRepoCreated = false;
+
     try {
+      // Step 1: Create repo in Gitea
       const orgRepoData = {
         org: "BCS",
         name: formData.projectName,
         private: formData.isPrivate,
         description: formData.description,
       };
+
       const topics = [
         ...selectedOptions.map((option) => option.value),
         formData.language,
       ];
+
       await postCreateRepoInOrg(orgRepoData, orgRepoData.org);
+      giteaRepoCreated = true;
+
       await postCreateRepoCatalogue(topics, formData.projectName);
+
+      // Step 2: Create project in FastAPI if applicable
+      if (selectedOptions[0]?.value === "bible") {
+        console.log("Executing add_project endpoint");
+        const response = await FastAPI.post("/add_project", {
+          project_name: formData.projectName,
+        });
+        console.log("Response from add_project endpoint:", response);
+      }
+
       await fetchHomePageData();
+
       setDialogState({
         isOpen: true,
         title: "Success",
@@ -220,27 +237,12 @@ const CreateRepo: React.FC = () => {
         isError: false,
         type: "project",
       });
-
-      //hackathon
-      if (selectedOptions[0]?.value === "bible") {
-        console.log("Executing add_project endpoint");
-        const response = await axios.post(
-          `${import.meta.env.VITE_FASTAPI_BASE_URL}/add_project`,
-          {
-            project_name: formData.projectName,
-          }
-        );
-        console.log("Response from add_project endpoint:", response);
-      }
-      //hackathon
-
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } catch (error: any) {
       console.log("Error details:", error);
 
       let errorMessage = "Failed to create Project. Please try again.";
+      let errorTitle = "Error";
 
-      console.log("Error details:", error.status);
       // Check for error status
       if (error.status === 409) {
         errorMessage = "A project with this name already exists.";
@@ -251,16 +253,22 @@ const CreateRepo: React.FC = () => {
           "Failed to create Project. Please try again.";
       }
 
+      // Handle the case where Gitea repo was created but FastAPI project creation failed
+      if (giteaRepoCreated && selectedOptions[0]?.value === "bible") {
+        errorTitle = "Partial Success";
+        errorMessage =
+          "The repository was created successfully, but we couldn't create the associated project in the system. Please try adding the project manually or contact support.";
+      }
+
       setDialogState({
         isOpen: true,
-        title: "Error",
+        title: errorTitle,
         message: errorMessage,
         isError: true,
         type: "project",
       });
     }
   };
-
   const handleDialogClose = () => {
     const { isError, type } = dialogState;
 
@@ -272,8 +280,19 @@ const CreateRepo: React.FC = () => {
     }));
 
     // Only navigate to /repo for successful project creation
-    if (!isError && type === "project") {
-      navigate("/repo");
+    if (
+      (!isError && type === "project") ||
+      (isError && dialogState.title === "Partial Success")
+    ) {
+      // For partial success, fetch the data before navigating
+      if (isError && dialogState.title === "Partial Success") {
+        fetchHomePageData().then(() => {
+          navigate("/repo");
+        });
+      } else {
+        // For complete success, data is already fetched
+        navigate("/repo");
+      }
     }
   };
 

@@ -2,11 +2,10 @@ import React, { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import SelectProjects from "./SelectProjects";
-import { API } from "@/services/Api";
+import { API, FastAPI } from "@/services/Api";
 import { Spinner } from "@/components/ui/spinner";
 import { useStore } from "@/stores/Store";
 import { setHeader } from "@/services/Api";
-import axios from "axios";
 import { useToast } from "@/hooks/use-toast";
 
 // import SelectBooks from "./SelectBooks";
@@ -101,22 +100,21 @@ const ParallelCorpora: React.FC = () => {
 
   const fetchListBibles = async (repo: string, selectedRepo: string) => {
     try {
-      const response = await axios.get(
-        `${import.meta.env.VITE_FASTAPI_BASE_URL}/list_books/?project_name=${selectedRepo}`
+      const response = await FastAPI.get(
+        `/list_books/?project_name=${selectedRepo}`
       );
-
       // Handle different response scenarios
       if (repo === "repo1") {
         // Get the bibles array or default to empty array
         const bibles = response?.data?.bibles || [];
 
         // Calculate the total successful books across all bibles
-        const successfulBooksCount = bibles.reduce((total, bible) => {
+        const successfulBooksCount = bibles.reduce((total: any, bible: any) => {
           // Check if bible has books array
           if (bible.books && Array.isArray(bible.books)) {
             // Count only the books with status "success"
             const successfulBooks = bible.books.filter(
-              (book) => book.status === "success"
+              (book: any) => book.status === "success"
             );
             return total + successfulBooks.length;
           }
@@ -133,10 +131,10 @@ const ParallelCorpora: React.FC = () => {
         // Same logic for repo2
         const bibles = response?.data?.bibles || [];
 
-        const successfulBooksCount = bibles.reduce((total, bible) => {
+        const successfulBooksCount = bibles.reduce((total: any, bible: any) => {
           if (bible.books && Array.isArray(bible.books)) {
             const successfulBooks = bible.books.filter(
-              (book) => book.status === "success"
+              (book: any) => book.status === "success"
             );
             return total + successfulBooks.length;
           }
@@ -175,11 +173,11 @@ const ParallelCorpora: React.FC = () => {
     try {
       // Determine which API endpoint to use based on withBCV
       const apiEndpoint = withBCV
-        ? `${import.meta.env.VITE_FASTAPI_BASE_URL}/parallel_corpora/withbcv/csv/`
-        : `${import.meta.env.VITE_FASTAPI_BASE_URL}/parallel_corpora/withoutbcv/csv/`;
+        ? `/parallel_corpora/withbcv/`
+        : `/parallel_corpora/withoutbcv/`;
 
       // Make the API call
-      const response = await axios.get(apiEndpoint, {
+      const response = await FastAPI.get(apiEndpoint, {
         params: {
           project_name_1: selectedProject1,
           project_name_2: selectedProject2,
@@ -193,12 +191,14 @@ const ParallelCorpora: React.FC = () => {
       // Create a link element and trigger download
       const link = document.createElement("a");
       link.href = window.URL.createObjectURL(blob);
-      const fileName = withBCV ? `parallel_corpora_BCV_${selectedProject1}_${selectedProject2}.csv`: `parallel_corpora_${selectedProject1}_${selectedProject2}.csv`;
+      const fileName = withBCV
+        ? `parallel_corpora_BCV_${selectedProject1}_${selectedProject2}.csv`
+        : `parallel_corpora_${selectedProject1}_${selectedProject2}.csv`;
       link.download = fileName;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error downloading CSV:", error);
       toast({
         variant: "destructive",
@@ -252,7 +252,7 @@ const ParallelCorpora: React.FC = () => {
                   handleSelectValueChange("repo2", value)
                 }
                 options={projects.filter(
-                  (project) => project.name !== selectedProject1
+                  (project: any) => project.name !== selectedProject1
                 )}
                 placeholder="Select target project"
               />
