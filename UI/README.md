@@ -265,3 +265,50 @@ Key Highlights and Recommendations:
 - Implement proper authentication flows
 
 Would you like me to elaborate on any specific aspect of the project setup or discuss more detailed implementation strategies for Gitea integration?
+
+
+## To run the project using docker
+Ensure `.env` file is created in the docker folder with following variables.
+   ```bash
+    VITE_GITEA_BASE_URL=http://localhost:3000
+    VITE_GITEA_UI_URL=http://localhost:3001
+    VITE_GITEA_ORG_NAME=BCS
+    VITE_GITEA_CLIENT_ID = {your-client-id}
+    VITE_GITEA_CLIENT_SECRET = {your-client-secret}
+    VITE_GITEA_REDIRECT_URI=http://localhost:3001/oauth/callback
+    VITE_FASTAPI_BASE_URL=http://localhost:8000
+
+   ```
+
+From the `cd ai_mft_data_preprocessing/docker` folder:
+
+   ```bash
+    docker-compose up --build
+   ```
+
+To run the containers in detached mode
+
+   ```bash
+    docker-compose up --build -d
+   ```
+
+To check logs from your running Docker containers:
+
+   ```bash
+   docker logs <container_name>
+   ```
+
+To stop the App
+
+   ```bash
+   docker-compose down
+
+   ```
+If you get cors error while calling api ,add the following lines in the docker/gitea/gitea/conf/app.ini
+  
+  ```bash
+   [cors]
+    ENABLED         = true
+    ALLOW_DOMAIN    = *
+
+   ```
